@@ -73,7 +73,7 @@ ch13-20 工程化与服务    ch30-36 RAG                  part12 面试与求�
 
 
 
-# 第一部分 整体认知与环境（ch01~ch03）
+# 第一部分 整体认知与环境（第1~3章）
 
 > 本部分回答三个问题：你要转成的这个岗位到底做什么（ch01）？动手环境怎么搭得干净、密钥怎么不进 git（ch02）？以及——从一台干净机器到程序真正跑起来，中间每一步长什么样、坏了怎么修（ch03）。
 >
@@ -1528,7 +1528,7 @@ steps:
 
 
 
-# 第二部分（上）Python 语言基础：对象、数据结构、函数、类与异常（ch04~ch08）
+# 第二部分（上）Python 语言基础：对象、数据结构、函数、类与异常（第4~8章）
 
 > 资料核实日期：2026-10-19。本部分全部示例均在本教材约定的沙箱环境（Python 3.14.7，见 `requirements.txt`）实际运行，输出为真实记录；教材基准 Python 3.12+，代码兼容 3.10+。
 > 前置知识：ch01~ch03（环境搭建、venv、第一个程序、异常堆栈阅读法）。
@@ -3811,7 +3811,7 @@ print("继续执行")   # 会打印
 
 
 
-# 第二部分（下）Python 语言基础：迭代器、装饰器、模块与类型、标准库（ch09~ch12）
+# 第二部分（下）Python 语言基础：迭代器、装饰器、模块与类型、标准库（第9~12章）
 
 > 前置知识：ch04~ch08（对象模型、数据结构、函数与作用域、类与魔术方法、异常体系）。
 > 本册四章把语言基础收尾：**ch09 迭代器与生成器**（惰性求值，直接服务于后面的 LLM 流式输出）、**ch10 装饰器**（全书框架代码的共同语法基础）、**ch11 模块与类型系统**（工程组织与 typing）、**ch12 标准库实战**（用一个小 CLI 项目把 json/pathlib/datetime/re/argparse 一次串起来）。
@@ -5205,7 +5205,7 @@ syllabus 对第二部分的验收是"写出含 dataclass + 装饰器 + 生成器
 
 
 
-# 第三部分 Python 工程化与服务开发（ch13~ch20）
+# 第三部分 Python 工程化与服务开发（第13~20章）
 
 > 前置知识：ch04~ch12（对象模型、数据结构、函数、异常、生成器、装饰器、类型注解、标准库）。
 > 本册八章是 Java 工程师转入 Python AI 应用开发的主干道：**ch13 asyncio**（并发的地基）、**ch14 线程/进程/GIL**（什么时候不用 asyncio）、**ch15 HTTP 客户端工程化**（调模型 API 的正确姿势）、**ch16 Pydantic v2**（数据校验与配置）、**ch17 FastAPI**（服务框架 + 收束演练）、**ch18 测试与质量**、**ch19 数据与缓存**、**ch20 部署基础**。Syllabus 的综合演练"订单查询+风控限流 FastAPI 服务"落在 ch17 收束演练（EX-17-06），部署在 ch20 收尾。
@@ -7597,7 +7597,7 @@ ch17 run log 的真实教训：先启动、下一条命令再 curl，全部 000�
 
 
 
-# 第四部分 大模型与模型 API（ch21~ch25）
+# 第四部分 大模型与模型 API（第21~25章）
 
 > 资料核实日期：2026-10-19。本部分全部示例均在本教材约定的沙箱环境（Python 3.14.7，openai==3.35.1，tiktoken==0.14.0，pydantic==2.14.1，numpy==2.5.4，见 `requirements.txt`）实际运行。
 > 运行模式约定（全书统一，见前言 0.5）：`LLM_MODE=mock`（默认，离线确定性规则模型，不联网）与 `LLM_MODE=real`（需 `OPENAI_API_KEY`）。沙箱没有 OPENAI_API_KEY，因此所有模型回答均来自 Mock 或标注为"示例输出（非真实记录）"；SDK 签名等**代码层事实**全部用 `inspect` 在 3.35.1 上实际核实，核实过程见 EX-24-01。
@@ -9716,7 +9716,7 @@ def search(query: str, kb: list[str], k: int) -> list[tuple[float, str]]:
 
 
 
-# 第五部分 Prompt 与上下文工程（ch26~ch29）
+# 第五部分 Prompt 与上下文工程（第26~29章）
 
 > 资料核实日期：2026-10-19。本部分全部示例在本教材约定的沙箱环境（Python 3.14.7，见 `requirements.txt`）实际运行；LLM 相关演示统一使用第四部分创建的 `examples/common/llm_client.py`（`LLM_MODE=mock` 默认离线 / `LLM_MODE=real` 需 Key），你不需要新装任何依赖。
 > 前置知识：第四部分全部（消息模型、结构化输出、工具调用）、ch18（pytest——golden set 的实现载体）、ch27 会用到 ch21 的 token 计数。
@@ -11494,7 +11494,7 @@ def verify_signature_suggestions(suggestions: list[str]) -> dict[str, list[str]]
 
 
 
-# 第六部分 RAG 从原理到生产（ch30~ch36）
+# 第六部分 RAG 从原理到生产（第30~36章）
 
 > 资料核实日期：2026-10-19。本部分全部示例在本教材约定的沙箱环境（Python 3.14.7，依赖见 `requirements.txt`）实际运行；LLM/Embedding 演示统一使用第四部分创建的 `examples/common/llm_client.py` 与 `examples/common/embeddings.py`（`LLM_MODE=mock` 默认离线 / `LLM_MODE=real` 需 Key），你不需要新装任何依赖。
 > 版本红线：本章实测使用 langchain-text-splitters==1.1.3、numpy==2.5.4、langchain-core==1.6.12 的 Document；FAISS 未安装（Python 3.14 轮子风险），只在 ch33"生产选型"提及；pypdf/pdfminer 不在锁定依赖中，PDF 提取用环境预装的 poppler-utils 24.02.0（pdftotext）实测。
@@ -14606,7 +14606,7 @@ if best_overlap < 2:
 
 
 
-# 第七部分 LangChain（ch37~ch42）
+# 第七部分 LangChain（第37~42章）
 
 > 资料核实日期：2026-10-19。本部分全部示例在本教材约定的沙箱环境实际运行（Python 3.14.7；锁定版本：langchain==1.4.6、langchain-core==1.6.12、langchain-openai==1.7.2、langchain-text-splitters==1.1.3、langchain-community==0.4.2、langgraph==1.2.16，见 `requirements.txt`）。
 > 运行模式约定（与全书一致）：沙箱没有 `OPENAI_API_KEY`，因此 LangChain 主线使用 langchain-core 自带的 **Fake 模型**（`FakeListChatModel` / `GenericFakeChatModel`，官方测试用途的确定性假模型）做可复现演示——这也是 LangChain 官方测试自己的做法，诚实且专业；涉及 `ChatOpenAI` 的真实调用一律给出"形状经 `inspect` 核实"的代码并明确标注"需 API Key，未实调"。所有 import 路径均在 1.4.6/1.6.12 上实测（运行记录见 `verification/run_logs/part07.md`）。
@@ -17297,7 +17297,7 @@ agent.run("北京天气怎么样？")  # 老 API：run/exec
 
 
 
-# 第八部分 LangGraph（ch43~ch51）
+# 第八部分 LangGraph（第43~51章）
 
 > 资料核实日期：2026-10-19。本部分全部示例在本教材约定的沙箱环境（Python 3.14.7，langgraph 1.2.16，langchain-core 1.6.12，见 `requirements.txt`）实际运行；模型相关节点统一使用第四部分创建的 `examples/common/llm_client.py`（`LLM_MODE=mock` 默认离线 / `LLM_MODE=real` 需 Key），输出标注 `# Mock 运行输出`。所有 API 形态（签名、报错文案、恢复语义）均以 `python3 -c "import inspect; ..."` 在 1.2.16 上实测为准，核实过程见各章与 `verification/run_logs/part08.md`。
 > 前置知识：ch08（异常体系）、ch11（TypedDict/类型注解）、ch24（工具调用闭环——ch46 的前身）、ch18（pytest——ch51 的载体）；项目二（p2_log_triage）是本部分的综合落地，建议学完 ch48 后开始读。
@@ -19028,7 +19028,7 @@ r3 = app.invoke(Command(resume=False), cfg); assert r3["action"] == "rejected"
 
 
 
-# 第九部分 Agent、MCP 与复杂应用（ch52~ch56）
+# 第九部分 Agent、MCP 与复杂应用（第52~56章）
 
 > **本部分定位**：第七、八部分分别给了你 Agent 的"框架快捷方式"（create_agent）与"手写能力"（LangGraph）。本部分回答工程落地前的最后一组问题：**这个需求该用 Workflow 还是 Agent（ch52）？该用单 Agent 还是多 Agent（ch53）？工具多了怎么管住（ch54）？工具如何标准化地暴露给模型（ch55，MCP）？以及全书的主线问题——怎么和已有的 Java 系统协作（ch56，项目三把 ch52~ch56 全部串起来）**。
 > **环境与核实基线**：langchain 1.4.6 / langgraph 1.2.16（沙箱实测）；MCP 规范版本 **2026-07-28**（编写日 2026-10-19 经官网 modelcontextprotocol.io 核实，核实方式与日期在 55.2 明确标注）；mcp（官方 Python SDK）1.30.0 与 langchain-mcp-adapters 0.3.2 已在沙箱安装并实测——**二者未入 requirements.txt 锁定文件**（原因与建议见 55.9"待核实"小节，由主编统一决定是否收编）。
@@ -20287,7 +20287,7 @@ cd projects/p3_java_python_agent && cat README.md   # 启动命令与全链路�
 
 
 
-# 第十部分 企业级架构、安全与运维（ch57~ch61）
+# 第十部分 企业级架构、安全与运维（第57~61章）
 
 > 资料核实日期：2026-10-19。本部分示例全部在教材约定的沙箱环境（Python 3.14.7，fastapi 0.146.0，pydantic 2.14.1，numpy 2.5.4，见 `requirements.txt`）实际运行；模型相关路径统一使用 `examples/common/llm_client.py`（`LLM_MODE=mock` 默认离线 / `LLM_MODE=real` 需 Key）。CI YAML、K8s 配置类内容在沙箱**只做静态检查，未真实运行**——每一处都在正文与验证记录里显式标注。
 > 前置知识：ch17（FastAPI 依赖注入/中间件/trace_id——本章大量引用不重复）、ch19（参数化 SQL/只读防线/Redis 限流）、ch15 与 ch24（超时/重试/幂等/429）、ch28（Prompt 注入与 golden set）、ch34~ch35（检索权限过滤与评估指标）、ch48（人工审批）。
@@ -21614,7 +21614,7 @@ python3 -m pytest tests/test_ch61.py -v
 
 
 
-# 第十一部分 微调与算法知识边界（ch62~ch63）
+# 第十一部分 微调与算法知识边界（第62~63章）
 
 > 资料核实日期：2026-10-19。本部分是全书"生产判断"基调的收束章：**不提供训练实操**（不写训练脚本、不报训练指标），提供的是技术路线选择框架、成本量级判断依据与"微调做不了什么"的边界论证。两个可运行示例（EX-62-01、EX-63-01/02）全部是**规则/脚本模拟**，已在沙箱真实运行；涉及真实训练的任何量化结论本部分一律不给。
 > 前置知识：ch22（预训练/SFT/对齐的一句话认知）、ch30（RAG 的适用边界）、ch35（评估集）、ch58.3 与 ch63 的权限论证。
