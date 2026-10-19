@@ -1,0 +1,62 @@
+# 教材示例文件：examples/ch61_release/github_workflows_ci.yml
+# 用途：ch61 的 CI/CD 流水线设计（GitHub Actions）。
+# 重要标注：本文件在教材沙箱中仅通过静态检查器（ex_61_01）核对文本特征，
+# 未在 GitHub 上实际运行（沙箱无 GitHub 运行环境）——语法与 API 以官方文档为准，
+# 读者采用前需在自己的仓库真实触发一次并观察结果。
+name: ai-service-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]   # 与镜像基础版本对齐；多版本时在此追加
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip               # 依赖缓存：pip install 不变时秒级跳过
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt 2>/dev/null \
+            || pip install -r requirements.txt
+
+      - name: Static checks (lint)
+        run: |
+          ruff check .
+          python -m compileall -q examples   # 快速语法兜底
+
+      - name: Run tests (mock mode, no network)
+        env:
+          LLM_MODE: mock           # CI 一律 Mock：真实调用又慢又花钱还不稳定
+        run: python -m pytest tests/ -q
+
+  build:
+    needs: test                    # 测试绿了才构建镜像
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (tag only, push is team-infra's job)
+        run: docker build -t ai-service:${{ github.sha }} .
+        # 沙箱教学仓库无 Dockerfile 构建环境；真实仓库按 ch20 的多阶段 Dockerfile 执行
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production       # 受保护环境：可配置人工批准（approvals）
+    steps:
+      - name: Deploy (placeholder)
+        run: echo "真实部署命令由团队平台注入；必须支持一键回滚（见教材 61.5.3 检查清单第 14 项）"
+        env:
+          API_KEY_REF: ${{ secrets.OPENAI_API_KEY }}   # 密钥只走 secrets 注入，绝不写进代码

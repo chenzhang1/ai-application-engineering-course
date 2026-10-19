@@ -1,0 +1,7 @@
+{
+  "_comment": "项目三·工单数据（契约的单一事实来源）。java/PlanServer.java 的内置种子数据与本文件逐字段一致，由 tests/test_p3.py 的契约测试核对。",
+  "workorders": [
+    {"workorder_id": "WO-2091", "plan_id": "P-1002", "status": "生产中", "produced_qty": 900, "target_qty": 1200},
+    {"workorder_id": "WO-2092", "plan_id": "P-1001", "status": "已完成", "produced_qty": 500, "target_qty": 500}
+  ]
+}

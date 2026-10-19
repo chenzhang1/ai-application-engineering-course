@@ -1,0 +1,40 @@
+# 来源与版本核实记录（sources.md）
+
+核实日期：2026-10-19。核实方式：沙箱内 `pip install` 实际安装 + `import`/`inspect.signature` 实测 + 本地运行输出。本文件只收录教材引用过的事实来源；优先级：官方文档 > 官方仓库 > 标准/论文 > 可信技术资料。
+
+## 一、版本核实（第一手：本机安装）
+
+- 核实命令：`pip install <pkg>` 后 `python3 -c "import importlib.metadata as md; print(md.version('<pkg>'))"`
+- 结果记录于 `requirements.txt` / `requirements-lock.txt`（pip freeze 全量）。
+- Python 解释器：`python3 --version` → 3.14.7。
+
+## 二、官方文档链接（教材中引用的入口页）
+
+- OpenAI Python SDK：https://github.com/openai/openai-python ；API 参考 https://platform.openai.com/docs/api-reference
+- OpenAI 兼容接口说明（各厂商自行维护，功能边界以厂商文档为准）
+- LangChain（Python）：https://python.langchain.com/docs/introduction/
+- LangChain 1.x 迁移与 create_agent：https://docs.langchain.com/oss/python/langchain/overview
+- LangGraph：https://langchain-ai.github.io/langgraph/ ；概念页 persistence/interrupt 等同名页面
+- Pydantic v2：https://docs.pydantic.dev/latest/
+- pydantic-settings：https://docs.pydantic.dev/latest/concepts/pydantic_settings/
+- FastAPI：https://fastapi.tiangolo.com/
+- httpx：https://www.python-httpx.org/
+- pytest：https://docs.pytest.org/en/stable/
+- pytest-asyncio：https://pytest-asyncio.readthedocs.io/
+- tiktoken：https://github.com/openai/tiktoken
+- MCP 规范：https://modelcontextprotocol.io/specification（版本以访问当日最新稳定版为准，教材中标注核实日期）
+- PEP 703（free-threading 背景）：https://peps.python.org/pep-0703/；CPython 发布说明：https://www.python.org/downloads/
+- weasyprint（仅 PDF 工具链）：https://doc.weasyprint.org/
+
+## 三、本仓库自证材料
+
+- 每章运行日志：`verification/run_logs/partNN.md`
+- 汇总验证报告：`verification/verification_report.md`
+- PDF 质量检查：`verification/pdf_check.md`（目录、字体、文本提取、页面渲染抽查）
+
+## 四、引用纪律
+
+1. 非官方来源的性能/市场数据一律不引用。
+2. 教材中的"大厂面试真题"不声称来源；全部为自拟模拟题并标注。
+3. 历史写法（LangChain 0.x 的 AgentExecutor 等）在文中给出适用版本背景与当前替代，见第七部分"历史考古"小节。
+4. 无法核实的内容不进入正文，只进各章"待核实"小节并给出核实办法。

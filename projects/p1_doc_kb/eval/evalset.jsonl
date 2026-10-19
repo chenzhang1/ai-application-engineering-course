@@ -1,0 +1,16 @@
+{"qid": "q01", "query": "年假年底会清零吗", "expect_doc_id": "hr_leave_policy", "expect_keywords": ["清零"]}
+{"qid": "q02", "query": "病假超过三天要什么材料", "expect_doc_id": "hr_leave_policy", "expect_keywords": ["证明"]}
+{"qid": "q03", "query": "VPN 验证码收不到怎么办", "expect_doc_id": "it_vpn_guide", "expect_keywords": ["验证码"]}
+{"qid": "q04", "query": "密码连续输错几次会被锁定", "expect_doc_id": "it_password_reset", "expect_keywords": ["锁定"]}
+{"qid": "q05", "query": "报销每月几号截止", "expect_doc_id": "finance_reimburse", "expect_keywords": ["25 日"]}
+{"qid": "q06", "query": "发票丢了怎么报销", "expect_doc_id": "finance_reimburse", "expect_keywords": ["记账联"]}
+{"qid": "q07", "query": "一线城市住宿上限多少钱一晚", "expect_doc_id": "finance_travel", "expect_keywords": ["600 元"]}
+{"qid": "q08", "query": "会议室超时未签到会怎么样", "expect_doc_id": "admin_meeting_room", "expect_keywords": ["15 分钟"]}
+{"qid": "q09", "query": "办公用品什么时候发放", "expect_doc_id": "admin_office_supplies", "expect_keywords": ["周三"]}
+{"qid": "q10", "query": "机密数据外发需要谁审批", "expect_doc_id": "security_data_classification", "expect_keywords": ["信息安全组"]}
+{"qid": "q11", "query": "访客 WiFi 密码多少", "expect_doc_id": "faq_common", "expect_keywords": ["Acme-Guest"]}
+{"qid": "q12", "query": "食堂午餐和晚餐几点供应", "expect_doc_id": "faq_common", "expect_keywords": ["18:30"]}
+{"qid": "q13", "query": "密码重置要多长时间", "expect_doc_id": "it_password_reset", "expect_keywords": ["10 分钟"]}
+{"qid": "q14", "query": "新员工什么时候发电脑", "expect_doc_id": "it_laptop_request", "expect_keywords": ["工卡"]}
+{"qid": "q15", "query": "公司年会抽奖什么时候公布", "expect_refused": true}
+{"qid": "q16", "query": "程序员节有什么福利", "expect_refused": true}

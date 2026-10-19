@@ -1,0 +1,24 @@
+# 教材核心依赖（经沙箱 Python 3.14.7 实际安装验证，核实日期 2026-10-19）
+# 完整传递依赖见 requirements-lock.txt
+openai==3.35.1
+pydantic==2.14.1
+pydantic-settings==2.16.0
+fastapi==0.146.0
+uvicorn==0.54.0
+httpx==0.28.1
+tiktoken==0.14.0
+langchain==1.4.6
+langchain-core==1.6.12
+langchain-openai==1.7.2
+langchain-community==0.4.2
+langchain-text-splitters==1.1.3
+langgraph==1.2.16
+numpy==2.5.4
+pytest==9.1.1
+pytest-asyncio==1.4.0
+respx==0.23.1
+fakeredis==2.40.0
+# 以下三个为第八/九部分验证时引入（SqliteSaver 持久化、MCP stdio 示例），已于沙箱实测
+langgraph-checkpoint-sqlite==3.1.2
+mcp==1.30.0
+langchain-mcp-adapters==0.3.2

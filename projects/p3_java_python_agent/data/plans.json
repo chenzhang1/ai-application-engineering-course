@@ -1,0 +1,9 @@
+{
+  "_comment": "项目三·生产计划数据（契约的单一事实来源）。java/PlanServer.java 的内置种子数据与本文件逐字段一致，由 tests/test_p3.py 的契约测试核对。日期固定为演示日 2026-03-18（沙箱离线可复现）。",
+  "date": "2026-03-18",
+  "plans": [
+    {"plan_id": "P-1001", "product": "减速器壳体", "qty": 500, "status": "正常"},
+    {"plan_id": "P-1002", "product": "转向节", "qty": 1200, "status": "延期"},
+    {"plan_id": "P-1003", "product": "制动盘", "qty": 800, "status": "正常"}
+  ]
+}

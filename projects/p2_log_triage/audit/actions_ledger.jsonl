@@ -1,0 +1,1 @@
+{"action_key": "restart_service:payment-service:incident-payment-outage", "action": "restart_service", "service": "payment-service", "status": "executed", "detail": "simulated restart (sandbox)"}

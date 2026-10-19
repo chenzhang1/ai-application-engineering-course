@@ -1,0 +1,99 @@
+# 代码验证报告（verification_report.md）
+
+> 核实日期：2026-10-19。本报告是全书"哪些代码真的运行过、怎么运行的、结果如何、什么没验证"的汇总。
+> 分章明细见 `run_logs/partNN.md`（12 份），本报告只做汇总与结论。
+
+## 1. 验证环境
+
+| 项 | 值 |
+|---|---|
+| 操作系统 | Linux（远程隔离沙箱） |
+| Python | 3.14.7（pyenv） |
+| Java / Maven | Java 25（mise）、Maven 3.9.10（仅编译，未用 Spring 依赖） |
+| Redis | 真实 redis-server 7.0.15（apt 安装）+ fakeredis 2.40.0 双后端 |
+| 数据库 | sqlite3（Python 标准库）；PostgresSaver 未验证（无 PG） |
+| Docker | 不可用——Dockerfile 仅静态检查 |
+| 网络 | 经代理出网（pypi、GitHub API、modelcontextprotocol.io 均真实访问） |
+| 模型 API Key | **无**——所有 LLM 相关验证均为 Mock 模式 |
+
+## 2. 总体结论
+
+- 教学示例：**207 个 Python 示例文件**（examples/ch01~ch63），每个都实际运行且退出码 0（个别"预期失败"教学示例除外，正文已标注）；输出为真实运行输出。
+- 项目代码：3 个项目共 30 个 Python 文件 + 1 个 Java 服务（编译+启动+curl 全链路验证）；P3 另有 Dockerfile 静态检查。
+- 测试：`python3 -m pytest tests/` → **424 passed, 0 failed**（2026-10-19 全量复跑，30s）。
+- 教材正文：14 个 Markdown 文件（34.3 万汉字），合并导出为 `exports/ai_application_engineering.md`；PDF 由 `tools/build_pdf.py` 生成（weasyprint 70.0 + Noto CJK 字体），质量检查见 `pdf_check.md`。
+
+## 3. 分部分验证结果（摘要）
+
+| 部分 | 示例(EX) | 测试 | 关键验证证据 |
+|---|---|---|---|
+| 一 认知与环境 | 8 + shell 链 | 20 | venv 创建/激活/退出、pip 冲突制造→pip check→修复全链（退出码实录）；pydantic-settings/.env、logging |
+| 二 Python 基础（上） | 28 | 33 | 可变默认参数、闭包延迟绑定、异常链 `__cause__`、dataclass/Protocol 等（含 3.14 行为实测修正：getrefcount、finally return SyntaxWarning） |
+| 二 Python 基础（下） | 20 | 28 | 生成器/装饰器/类型系统；ch12 端到端 CLI：GitHub API 在线成功 + 限流时回退本地快照双路径真实输出 |
+| 三 工程化与服务 | 30 | 40 | asyncio 对照实验（time.sleep vs asyncio.sleep、16.2× 并发加速）、httpx 超时/退避重试、Pydantic v2、FastAPI 服务真实启动：/healthz 200、SSE 全流、连打 70 发 58×200+12×429；SQL 注入对照实验（AND 优先级教学点）；真实 Redis 7.0.15 缓存/限流 |
+| 四 模型 API | 12 | 23 | tiktoken 计数（联网下载词表 27s→缓存 0.14s 实测）、15 行点积注意力、流式 chunk 拼接、工具调用完整闭环（script Mock）、结构化输出校验失败→重试；openai 3.35.1 全部签名 inspect 核实（parse 无 stream 等） |
+| 五 Prompt | 12 | 23 | 三段式模板、Few-shot、窗口截断/摘要、token 预算表真实计算、golden set 回归测试（pytest 实现）、注入防护边界 |
+| 六 RAG | 19 | 40 | markdown/HTML/PDF 文本层解析（含扫描件空文本层实验）、RecursiveCharacterTextSplitter 1.1.3 实测切分、numpy 余弦检索、纯 Python BM25、混合 RRF、引用溯源、拒答双保险、评估集四指标 |
+| 七 LangChain | 17 | 29 | langchain 1.4.6 全 API 实测（create_agent 16 参数、@tool 无 handle_tool_error 参数、FakeListChatModel 循环语义、AgentExecutor 已迁入 langchain-classic 的 ImportError 实录、ModelCallLimitMiddleware 两种 exit_behavior） |
+| 八 LangGraph | 19 | 49 | 五个渐进示例全跑通（两节点→条件→工具循环→InMemory/SqliteSaver 持久化→interrupt 审批两结局）；时间旅行、Send 并行、子图、stream 三模式真实输出；recursion_limit 触发实录 |
+| 九 Agent/MCP | 16 | 47 | MCP 规范核实（2026-07-28 版，WebFetch 实访）；mcp 1.30.0 stdio server/client 端到端、langchain-mcp-adapters 0.3.2 接入 create_agent；工具描述质量对照实验（误选 4/8→1/8） |
+| 十 生产架构 | 17 | 47 | 只读沙箱包装器、语义缓存误命中演示、熔断器、成本统计中间件、背压；CI YAML 12 项静态检查（未真实运行，标注） |
+| 十一 微调边界 | 4 | 12 | 路线选择树（确定性规则）、"垃圾进垃圾出"教学模拟（三处标注非真实训练） |
+| 十二 面试 | - | - | 62 题[模拟题]+8 个自测；纯文字，与全书口径对账（EX/版本号引用核对） |
+
+## 4. 三个项目验证证据
+
+### P1 企业文档知识库（projects/p1_doc_kb）
+- 真实启动 uvicorn 并 curl：`/health`（12 docs/25 chunks）、`POST /ingest`、`POST /ask`（answered+引用 3 条）、**部门权限拒绝**、**跨租户拒绝**（双保险各自拦截）、**空结果拒答**、SSE 流（meta→delta×N→done）、DELETE 后 404。
+- 评估：evalset.jsonl 16 条，hit@2/关键词/引用/拒答 4 指标全过（MockEmbedder+本合成语料）。
+- 测试 17 个。
+
+### P2 生产日志排障助手（projects/p2_log_triage）
+- LangGraph 编排：解析→规则预筛→证据提取→受限只读工具（SQLite `mode=ro`+`query_only`、三道白名单）→假设→证据强度评估（不足必拒答）→高风险动作 interrupt 审批→P1/P2/UNKNOWN 分级。
+- 恢复/审批三段真实证据：A 进程内拒绝（副作用 0 执行）；B SqliteSaver 跨"进程"恢复（新编译图 get_state 见 interrupts，批准后 executed）；C 从暂停检查点重放恢复（`already_done`，executed 恒 1）——幂等账本验证。
+- 审计 JSONL 全链留痕；测试 14 个（含注入值拒绝、thread 隔离、图级重放幂等）。
+
+### P3 Java+Python 协作业务 Agent（projects/p3_java_python_agent）
+- Java 25：`javac PlanServer.java` 成功，启动 LISTENING；curl 4 端点全过；**幂等实证**：同 Idempotency-Key 二次 POST 返回同 adjustment_id + `idempotent_replay:true`；无 key→400。
+- Python Agent（create_agent+checkpointer+interrupt）真连 Java：低风险 202→succeeded（真实写 ADJ-0002）；高风险 waiting_approval→approve→ADJ-0003 / reject→"未执行"且 Java 零写请求；任务取消 202→409；审计全留痕。
+- respx 单测 10 + 真启 Java 进程集成测试 8。
+
+## 5. 测试覆盖对照（第八节要求 → 实际）
+
+| 要求场景 | 覆盖位置（示例） |
+|---|---|
+| 正常输入 | 全部示例与各 test 文件 |
+| 空输入/边界 | test_ch05/ch16/ch32（空列表、空日志、空切分） |
+| 非法参数 | test_ch16/ch17（422）、test_p3（参数校验） |
+| 超时/限流 | test_ch15（退避次数）、test_ch18/ch17（429 断言）、EX-59 系列 |
+| 工具调用失败 | test_ch39（ToolException 三策略）、P2 白名单拒绝 |
+| 无检索结果 | test_ch35、P1 空结果拒答 |
+| 格式不符 Schema | test_common_llm（StructuredOutputError）、EX-24-02 |
+| 权限不足 | P1 部门/租户拒绝、EX-58-03 工具 RBAC |
+| 状态恢复 | P2 恢复三段、EX-47 系列 |
+| 重复请求/幂等 | P3 Idempotency-Key、P2 幂等账本、EX-15-03 |
+| 并发问题 | EX-13-06 Semaphore、EX-59-02 背压、P2 thread 隔离 |
+
+## 6. 未验证项与原因（汇总）
+
+1. **真实模型全链路**：沙箱无 `OPENAI_API_KEY`。所有 LLM 输出为 Mock 运行输出或示例输出（全书已标注）；RealLLM/RealEmbedder 仅经 httpx.MockTransport 验证响应形状转换。
+2. **Docker 构建**：沙箱无 Docker。ch20 与 P3 的 Dockerfile 通过静态特征检查（11/11、9/9），未真实 build。
+3. **Kubernetes/GitHub Actions**：无集群/无真实 CI 运行；YAML 为静态检查（12/12），需读者环境验证。
+4. **PostgresSaver/哨兵集群/持久化配置**：无 PG、Redis 只验证单机 GET/SET/INCR/EXPIRE/TTL/ping。
+5. **Windows/macOS 差异**（venv 激活、tzdata 回退）：按官方文档书写并标注，未实测。
+6. **真实生产参数**（稳定性参数表、容量公式、uvicorn 多 worker 长压测）：工程惯例起点，未经真实流量压测，正文已声明。
+7. **3.10/3.11 解释器回归**：教材基准 3.12+、代码兼容 3.10+，但只在 3.14.7 全量验证。
+8. **MCP Streamable HTTP 传输与 Java SDK**：仅 stdio 实测；其余按 2026-07-28 规范描述并标"待核实"。
+9. **Spring Boot 等价实现**（P3 README 对照代码）：未运行 Spring 版本，标注"形状对照"。
+10. **微调/训练**：本书不含真实训练（教学模拟已三处标注）。
+
+## 7. 复现说明
+
+```bash
+pip install -r requirements.txt          # 版本已锁定（与验证环境一致）
+python3 -m pytest tests/ -q              # 424 passed（P2 的 SqliteSaver 用例未装依赖时自动跳过）
+python3 examples/ch02_env/ex_02_01_where_am_i.py   # 任一示例可直接运行
+# P1：cd projects/p1_doc_kb && uvicorn app.main:app --port 8001（详见项目 README）
+# P2：python3 projects/p2_log_triage/scripts/run_triage.py --scenario payment-outage
+# P3：cd projects/p3_java_python_agent && javac -d java/out java/PlanServer.java && java -cp java/out PlanServer
+```

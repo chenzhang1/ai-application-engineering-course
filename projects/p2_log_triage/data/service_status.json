@@ -1,0 +1,30 @@
+{
+  "order-service": {
+    "status": "degraded",
+    "p99_ms": 2430,
+    "error_rate": 0.31,
+    "pod_restarts": 0,
+    "updated_at": "2026-10-19T09:12:00+08:00"
+  },
+  "payment-service": {
+    "status": "down",
+    "p99_ms": null,
+    "error_rate": 1.0,
+    "pod_restarts": 4,
+    "updated_at": "2026-10-19T09:12:00+08:00"
+  },
+  "gateway": {
+    "status": "healthy",
+    "p99_ms": 21,
+    "error_rate": 0.02,
+    "pod_restarts": 0,
+    "updated_at": "2026-10-19T09:12:00+08:00"
+  },
+  "db-task-runner": {
+    "status": "healthy",
+    "p99_ms": 4800,
+    "error_rate": 0.01,
+    "pod_restarts": 0,
+    "updated_at": "2026-10-19T09:12:00+08:00"
+  }
+}
