@@ -1,24 +1,33 @@
-# 教材核心依赖（经沙箱 Python 3.14.7 实际安装验证，核实日期 2026-10-19）
-# 完整传递依赖见 requirements-lock.txt
-openai==3.35.1
-pydantic==2.14.1
-pydantic-settings==2.16.0
-fastapi==0.146.0
-uvicorn==0.54.0
+# 教材核心依赖（版本锁定）
+#
+# 版本核实记录（两轮全量验证，详见 验证报告/代码验证报告.md）：
+#   第一轮 2026-10-19 上午：Python 3.14.7 + 下述"初版组合"（openai 3.35.1 等）——全书 207 个示例
+#                          与 424 个测试首次全部验证通过（该组合当时由镜像源实际提供）。
+#   第二轮 2026-10-19 下午：沙箱解释器升级至 3.14.8，镜像源可用版本线回退（openai 3.35.1、
+#                          langchain 1.4.6 等在索引中不再可解析）——按下述当前组合在全新解释器
+#                          重建环境，424 个测试再次全部通过（424 passed）。
+#   两轮 API 形态一致：本书全部 API 均经 inspect 实测；版本细节以本文件为准。
+# 完整传递依赖见 requirements-lock.txt（第二轮实测生成）。
+
+openai==2.54.0
+pydantic==2.13.4
+pydantic-settings==2.14.2
+fastapi==0.141.1
+uvicorn==0.44.0
 httpx==0.28.1
-tiktoken==0.14.0
-langchain==1.4.6
-langchain-core==1.6.12
-langchain-openai==1.7.2
-langchain-community==0.4.2
-langchain-text-splitters==1.1.3
-langgraph==1.2.16
-numpy==2.5.4
+tiktoken==0.12.0
+langchain==1.2.15
+langchain-core==1.3.1
+langchain-openai==1.2.0
+langchain-community==0.4.1
+langchain-text-splitters==1.1.1
+langgraph==1.1.10
+numpy==2.5.3
 pytest==9.1.1
 pytest-asyncio==1.4.0
-respx==0.23.1
-fakeredis==2.40.0
+respx==0.22.0
+fakeredis==2.36.2
 # 以下三个为第八/九部分验证时引入（SqliteSaver 持久化、MCP stdio 示例），已于沙箱实测
-langgraph-checkpoint-sqlite==3.1.2
+langgraph-checkpoint-sqlite==3.0.3
 mcp==1.30.0
-langchain-mcp-adapters==0.3.2
+langchain-mcp-adapters==0.3.0

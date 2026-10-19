@@ -7,24 +7,24 @@
 
 | 交付物 | 位置 |
 |---|---|
-| 主教材 PDF | `exports/ai_application_engineering.pdf` |
-| 教材 Markdown 源稿 | `textbook/partNN_*.md`（合并版 `exports/ai_application_engineering.md`） |
-| 示例与项目代码 | `examples/`、`projects/`（打包 `exports/ai_application_code.zip`） |
+| 主教材 PDF | `下载导出/ai_application_engineering.pdf` |
+| 教材 Markdown 源稿 | `教材/partNN_*.md`（合并版 `下载导出/ai_application_engineering.md`） |
+| 示例与项目代码 | `示例代码/`、`综合项目/`（打包 `下载导出/ai_application_code.zip`） |
 | 依赖配置 | `requirements.txt`、`requirements-lock.txt` |
-| 代码验证报告 | `verification/verification_report.md`、运行日志 `verification/run_logs/` |
+| 代码验证报告 | `验证报告/代码验证报告.md`、运行日志 `验证报告/运行日志/` |
 | 练习与考核 | 各章"练习/自测/阶段考核"小节 |
-| 面试题库 | `interview/`（正文 `textbook/part12_interview.md`） |
+| 面试题库 | `面试准备/`（正文 `教材/part12_interview.md`） |
 
 ## 学习路径速览
 
 1. **从头完整学习**：按卷一→卷二→卷三顺序，每章完成练习与自测。
-2. **Java 开发者加速**：读 `syllabus.md` 路径 2。
-3. **面试冲刺**：读 `syllabus.md` 路径 3。
-4. **项目驱动**：读 `syllabus.md` 路径 4。
+2. **Java 开发者加速**：读 `教学大纲.md` 路径 2。
+3. **面试冲刺**：读 `教学大纲.md` 路径 3。
+4. **项目驱动**：读 `教学大纲.md` 路径 4。
 
 ## 环境要求
 
-- Python 3.12+（本书代码在 3.14.7 上全部验证）
+- Python 3.12+（本书代码在 3.14.7 与 3.14.8 两轮全量验证，两轮均 424 测试全绿；版本双轮说明见教材前言 0.6 与 requirements.txt 头注）
 - `pip install -r requirements.txt`
 - 无 API Key 也能学完全书：所有 LLM 示例默认 `MODE=mock`；真实模式需自行配置 `OPENAI_API_KEY`（兼容 OpenAI 接口的服务均可，注意功能支持边界，见第四部分）。
 
@@ -37,4 +37,4 @@
 
 ## 目录
 
-见 [syllabus.md](syllabus.md)；逐章进度见 [progress.md](progress.md)。
+见 [教学大纲.md](教学大纲.md)；逐章进度见 [学习进度.md](学习进度.md)。
