@@ -739,7 +739,7 @@ Spring 集成视角：tools 通常就是**对 Java 服务的只读查询**（HTT
 
 ### 参考答案
 
-基础 1：agent 节点、tools 节点、`agent →(条件)→ 构建工具/END` 条件边、`tools → agent` 回边。基础 2：它由 ToolNode 生成，是"工具执行结果"的载体，与发起调用的 AIMessage 通过 tool_call_id 配对。代码 1：脚本追加 `{"tool_calls": [{"id": "call_003", "name": "query_order_logistics", "arguments": {"order_id": "ORD-1001"}}]}`，最终总结条目前移。代码 2：
+基础 1：agent 节点、tools 节点、`agent →(条件)→ tools/END` 条件边、`tools → agent` 回边。基础 2：它由 ToolNode 生成，是"工具执行结果"的载体，与发起调用的 AIMessage 通过 tool_call_id 配对。代码 1：脚本追加 `{"tool_calls": [{"id": "call_003", "name": "query_order_logistics", "arguments": {"order_id": "ORD-1001"}}]}`，最终总结条目前移。代码 2：
 
 ```python
 class AgentState(MessagesState, total=False):
@@ -937,7 +937,7 @@ python3 示例代码/ch47_persistence/ex_47_03_time_travel.py
 
 ### 参考答案
 
-基础 1：流程已结束；流程停在 approval 节点等人工决策。基础 2：每轮 invoke 产生 start 前/support 前/结束共 3 个检查点（EX-47-01 输出的 next 序列可数）。代码 2：取 `next == ('第二步节点',)` 的历史检查点，`invoke({"messages": [HumanMessage("新输入")]}, 旧config)`。调试题：恢复 invoke 的输入应该是**增量**（只放新增消息）——恢复时图会从快照里的旧历史继续，再把输入的"完整历史"追加了一遍，消息翻倍。修法：恢复调用只传新消息，或干脆 `invoke(None, cfg)`（resume 场景）。
+基础 1：流程已结束；流程停在 approval 节点等人工决策。基础 2：每轮 invoke 产生 start 前/support 前/结束共 3 个检查点（EX-47-01 输出的 next 序列可数）。代码 2：取 `next == ('第二步节点',)` 的历史检查点，`invoke({"messages": [HumanMessage("新输入")]}, 旧config)`。调试题：恢复 invoke 的输入应该是**增量**（只放新增消息）——恢复时图会从快照里的旧历史继续，再把输入的"完整历史"追加了一遍，消息翻倍。修法：恢复调用只传新消息。注意 `invoke(None, cfg)` 不是恢复手段——那是 ch47 的时间旅行语义（从历史检查点**原路重放**）；若是 interrupt 后的人工恢复，必须用 `Command(resume=...)`（ch48）。
 
 ## 47.10 自测检查表
 

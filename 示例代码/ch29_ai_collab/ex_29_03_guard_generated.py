@@ -19,14 +19,17 @@ def dedupe_ai_buggy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 # ---- 修复版（人类补测试后迭代的结果）---------------------------------------
 def dedupe(items: list[Any]) -> list[Any]:
-    """保持首次出现顺序去重；可哈希元素直接比，dict 按内容签名比。"""
+    """保持首次出现顺序去重；可哈希元素用自身当签名，unhashable 按内容签名比。"""
     seen: list[Any] = []
     out: list[Any] = []
     for x in items:
+        key: Any
         try:
-            key: Any = x  # 可哈希：直接当签名（str/int/tuple…）
-        except TypeError:  # noqa: PERF203 —— unhashable（如 dict）：用内容字符串当签名
-            key = str(sorted(x.items(), key=lambda kv: kv[0]))
+            hash(x)  # 探测可哈希性——赋值本身永远不会抛 TypeError，必须显式探测
+        except TypeError:  # noqa: PERF203 —— unhashable（如 dict）：用内容签名当钥匙
+            key = ("__unhashable__", repr(x))
+        else:
+            key = x  # 可哈希：直接用自身当签名（str/int/tuple…）
         if key not in seen:
             seen.append(key)
             out.append(x)

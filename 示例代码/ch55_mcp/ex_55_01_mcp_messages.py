@@ -55,7 +55,7 @@ def main() -> None:
     }
     show("③ notifications/initialized 通知（无 id = 不期待回复）", initialized_notification)
 
-    # 4) 构建工具/list 请求与响应（工具清单：name/description/inputSchema 三件套）
+    # 4) tools/list 请求与响应（工具清单：name/description/inputSchema 三件套）
     tools_list_response = {
         "jsonrpc": "2.0",
         "id": 2,
@@ -73,11 +73,11 @@ def main() -> None:
             ]
         },
     }
-    show("④ 构建工具/list 响应（工具 = name + description + inputSchema）", tools_list_response)
+    show("④ tools/list 响应（工具 = name + description + inputSchema）", tools_list_response)
 
-    # 5) 构建工具/call 请求与两种响应（成功 / 工具内部异常 → isError=true）
+    # 5) tools/call 请求与两种响应（成功 / 工具内部异常 → isError=true）
     call_request = {
-        "jsonrpc": "2.0", "id": 3, "method": "构建工具/call",
+        "jsonrpc": "2.0", "id": 3, "method": "tools/call",
         "params": {"name": "get_plan", "arguments": {"plan_id": "P-1002"}},
     }
     call_ok = {"jsonrpc": "2.0", "id": 3, "result": {
@@ -85,9 +85,9 @@ def main() -> None:
     call_err = {"jsonrpc": "2.0", "id": 3, "result": {
         "content": [{"type": "text", "text": "Error executing tool get_plan: 计划 P-9999 不存在"}],
         "isError": True}}
-    show("⑤ 构建工具/call 请求", call_request)
-    show("⑥ 构建工具/call 成功响应（content 是内容块列表）", call_ok)
-    show("⑦ 构建工具/call 工具内部异常：仍在 result 里，isError=true（≠ JSON-RPC error）", call_err)
+    show("⑤ tools/call 请求", call_request)
+    show("⑥ tools/call 成功响应（content 是内容块列表）", call_ok)
+    show("⑦ tools/call 工具内部异常：仍在 result 里，isError=true（≠ JSON-RPC error）", call_err)
 
     # 6) 对照表：JSON-RPC 帧 ↔ 三种 MCP 消息方向
     print("── 帧类型速查 ──")

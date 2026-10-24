@@ -1,4 +1,4 @@
-# EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py
+# EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_tools/ex_39_03_tool_render.py
 """完整可运行（离线）：
 [1] 多工具 + render_text_description_and_args：模型菜单的真实形态；
 [2] @tool 的 return_direct / parse_docstring 选项；

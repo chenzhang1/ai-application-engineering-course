@@ -30,3 +30,12 @@
 ```bash
 python3 构建工具/build_pdf.py   # 重新生成 PDF 与合并版 Markdown
 ```
+
+## 2026-10-24 修订版再生成说明
+
+配合本次教材修订（MCP 方法名讹误修复、EX-16-03/EX-19-03/EX-36-01 等代码修正、ch24 新增 2026 API 对照小节、ch62.4 决策树重绘），按 `构建工具/build_pdf.py` 原流程重新生成了合并 md、HTML 与 PDF。本次再生成环境与首轮不同，如实记录：
+
+- **环境**：Windows 11（win32）+ Python 3.14；本机无 GTK/Pango 运行库，weasyprint 无法运行。md 与 HTML 阶段使用原脚本与原依赖（markdown + pygments，版本一致）完成；**PDF 渲染改用 Microsoft Edge 无头打印**（`--headless=new --no-pdf-header-footer`，对 HTML 注入 `print-color-adjust:exact` 以保留代码块/目录底色）。构建脚本本身未改动——在装有 weasyprint 的 Linux/macOS 上仍应按"重建方式"一节执行。
+- **结果差异**：428 页（原 599 页）、约 12MB（原 4.3MB）。差异主因是字体：本机未安装 Noto Sans CJK SC，渲染回退到系统 CJK 字体，行高与字宽度量不同，故分页与页码与首轮不对应；字号、结构、章节划分不变。
+- **抽查核验**：封面/目录/页眉页脚/章首页正常；MCP 修正（`tools/list`、`tools/call`）、ch24.12 新小节、ch62.4 新决策树均已确认进入 PDF 文本层；目录页码可跟随。
+- 已知小瑕疵在上述 3 条之外新增一条：目录点线（leader()）在本次渲染下的对齐精度与首轮略有差异，不影响阅读与跳转。

@@ -2,7 +2,7 @@
 # 运行: python3 示例代码/ch55_mcp/ex_55_04_mcp_langchain_adapter.py
 """实测（langchain-mcp-adapters 0.3.2 + mcp 1.30.0，2026-10-19 真实运行）：
 
-1. load_mcp_tools(session)：把 MCP 构建工具/list 的结果翻译成 langchain_core.tools.BaseTool
+1. load_mcp_tools(session)：把 MCP tools/list 的结果翻译成 langchain_core.tools.BaseTool
    ——name/description 原样保留，inputSchema 变成 Pydantic 参数 schema；
 2. 转换后的工具可以直接 .invoke()（本地直调），也可以交给 create_agent()
    ——模型看到的工具与本地 @tool 写的完全同构（这正是 MCP 的价值）；
@@ -51,7 +51,7 @@ async def run_demo() -> None:
                       f"{list(t.args.keys()) if t.args else []}")
                 print(f"  description={t.description}")
 
-            # 2) 转换后的工具本地直调（内部走 MCP 协议 构建工具/call）
+            # 2) 转换后的工具本地直调（内部走 MCP 协议 tools/call）
             direct = await tools[0].ainvoke({"plan_id": "P-1001"})
             print(f"\n── BaseTool 直调 {tools[0].name} ──\n{direct}")
 

@@ -853,10 +853,10 @@ Spring Boot 团队通常在 Python AI 服务里做**三层接线**：模型层�
 
 ## 39.4 最小完整示例：从 @tool 到 Agent 内的错误恢复
 
-**EX-39-01 | 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py（完整可运行）**
+**EX-39-01 | 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py（完整可运行）**
 
 ```python
-# EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py
+# EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py
 """完整可运行（离线）：@tool 把普通函数变成 BaseTool——docstring 变描述、类型注解变
 参数 schema；对照第四部分裸 SDK 里"手写 JSON Schema + 手写执行分发"两份代码。
 """
@@ -926,10 +926,10 @@ if __name__ == "__main__":
     LangChain 用 @tool 把两份合成一份：schema 自动生成，name 自动路由。
 ```
 
-**EX-39-02 | 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py（完整可运行）**
+**EX-39-02 | 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py（完整可运行）**
 
 ```python
-# EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py
+# EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py
 """完整可运行（离线）：
 [1] args_schema 挂自定义 Pydantic 模型：字段描述进 schema、默认值、枚举约束；
 [2] ToolException：工具"预期内失败"的表达方式，三种 handle_tool_error 策略实测；
@@ -1035,10 +1035,10 @@ if __name__ == "__main__":
     设置 handle_validation_error 后 → '参数不合法：unit 只能是 celsius 或 fahrenheit'
 ```
 
-**EX-39-03 | 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py（完整可运行）**
+**EX-39-03 | 示例代码/ch39_lc_tools/ex_39_03_tool_render.py（完整可运行）**
 
 ```python
-# EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py
+# EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_tools/ex_39_03_tool_render.py
 """完整可运行（离线）：
 [1] 多工具 + render_text_description_and_args：模型菜单的真实形态；
 [2] @tool 的 return_direct 选项；
@@ -1158,9 +1158,9 @@ divide(a: 'int', b: 'int') -> 'float' - 两数相除。, args: {'a': {'title': '
 ```bash
 pip install -r requirements.txt   # langchain==1.4.6 / langchain-core==1.6.12
 
-python3 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py
-python3 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py
-python3 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py
+python3 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py
+python3 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py
+python3 示例代码/ch39_lc_tools/ex_39_03_tool_render.py
 
 python3 -m pytest 测试/test_ch39.py -q
 ```
@@ -1212,8 +1212,10 @@ def transfer_money(amount: float) -> str:
         raise ToolException("金额超限：单笔上限 10000 元")
     return f"已转账 {amount} 元"
 
-transfer_money.handle_tool_error = "转账失败：{error}。建议：拆分金额或转人工审批。".format
-# 更清晰的可调用写法：
+# 策略一（str）：固定文案——不管异常是什么，返回同一段话
+transfer_money.handle_tool_error = "转账失败。建议：拆分金额或转人工审批。"
+# 策略二（callable）：按异常对象生成文案——收到的就是异常本身，用 f-string 取 e；
+# 注意别写成 "...{error}...".format：format 会把异常当位置参数，具名占位符直接 KeyError（实测）
 transfer_money.handle_tool_error = lambda e: f"转账失败：{e}。建议：拆分金额或转人工审批。"
 ```
 测试：`assert "人工审批" in transfer_money.invoke({"amount": 20000})`。
@@ -2239,7 +2241,7 @@ def main() -> None:
     except NotImplementedError as e:
         print(f"    NotImplementedError（异常消息为空——基类只声明契约，不解释）：{e!r}")
 
-    print("\n[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/...")
+    print("\n[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/...")
     print("    response_format/state_schema/checkpointer 等——运行记录见 part07.md）：")
     script = iter([
         AIMessage(content="", tool_calls=[
@@ -2284,7 +2286,7 @@ if __name__ == "__main__":
 [0] 不实现 bind_tools 会怎样（真实报错，42.3 详述）：
     NotImplementedError（异常消息为空——基类只声明契约，不解释）：NotImplementedError()
 
-[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/...
+[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/...
     response_format/state_schema/checkpointer 等——运行记录见 part07.md）：
     返回类型 = CompiledStateGraph（一个 LangGraph 编译图，第八部分的主角）
     state keys = ['messages']

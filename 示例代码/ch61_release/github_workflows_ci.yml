@@ -34,7 +34,7 @@ jobs:
       - name: Static checks (lint)
         run: |
           ruff check .
-          python -m compileall -q examples   # 快速语法兜底
+          python -m compileall -q 示例代码   # 快速语法兜底
 
       - name: Run tests (mock mode, no network)
         env:

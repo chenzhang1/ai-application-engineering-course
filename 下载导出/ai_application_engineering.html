@@ -139,7 +139,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li class="l1"><a href="#python-48">第二部分（上）Python 语言基础：对象、数据结构、函数、类与异常（第4~8章）</a></li>
 <li class="l2"><a href="#4">第 4 章 变量与对象模型：名字贴在对象上</a></li>
 <li class="l2"><a href="#5-list-tuple-dict-set">第 5 章 内置数据结构：list / tuple / dict / set 与推导式</a></li>
-<li class="l2"><a href="#6-argskwargslegb">第 6 章 函数与作用域：默认参数、args/*kwargs、LEGB 与闭包</a></li>
+<li class="l2"><a href="#6-argskwargslegb">第 6 章 函数与作用域：默认参数、*args/**kwargs、LEGB 与闭包</a></li>
 <li class="l2"><a href="#7-propertydataclass-protocol">第 7 章 面向对象：类、魔术方法、property、dataclass 与 Protocol</a></li>
 <li class="l2"><a href="#8-eafp">第 8 章 异常体系：EAFP、自定义异常、异常链与上下文管理器</a></li>
 <li class="l1"><a href="#python-912">第二部分（下）Python 语言基础：迭代器、装饰器、模块与类型、标准库（第9~12章）</a></li>
@@ -2838,7 +2838,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <li>set/dict 的遍历顺序细节（哈希随机化、扩容重排）随解释器版本与运行环境变化，任何依赖"具体顺序"的代码都是 bug；本章示例对 set 一律用 <code>sorted()</code> 输出即为规避示范。</li>
 </ul>
 <hr />
-<h2 id="6-argskwargslegb">第 6 章 函数与作用域：默认参数、<em>args/</em>*kwargs、LEGB 与闭包</h2>
+<h2 id="6-argskwargslegb">第 6 章 函数与作用域：默认参数、*args/**kwargs、LEGB 与闭包</h2>
 <blockquote>
 <p><strong>本章目标</strong>：掌握函数签名设计（默认参数、可变参数、keyword-only）、LEGB 作用域规则与闭包，能识别并修复两大经典陷阱（可变默认值、延迟绑定）。
 <strong>前置知识</strong>：ch04 的名字绑定模型（本章大量用到"绑定/重新绑定"）。
@@ -5912,7 +5912,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 </blockquote>
 <h3 id="143">14.3 正式原理与准确术语</h3>
 <ul>
-<li><strong>GIL（Global Interpreter Lock，全局解释器锁）</strong>：CPython 解释器的互斥锁，保证同一时刻仅一个线程执行 Python 字节码。<strong>版本事实</strong>：CPython 3.12 前的所有正式版本默认带 GIL；3.13 起提供 free-threading（自由线程）<strong>实验性</strong>构建（可用 <code>python3.13t</code> 类构建关闭 GIL），截至本书核实的版本仍非默认、生态适配有限——具体状态以官方发布说明为准。</li>
+<li><strong>GIL（Global Interpreter Lock，全局解释器锁）</strong>：CPython 解释器的互斥锁，保证同一时刻仅一个线程执行 Python 字节码。<strong>版本事实</strong>：CPython 3.12 前的所有正式版本默认带 GIL；3.13 起提供 free-threading（自由线程）<strong>实验性</strong>构建（可用 <code>python3.13t</code> 类构建关闭 GIL）；3.14 起按 PEP 779 转为<strong>官方支持但默认关闭</strong>的构建形态（仍需显式安装/启用 free-threaded 构建，普通构建默认带 GIL），生态适配也在持续推进——具体状态以官方发布说明为准。</li>
 <li><strong>IO 密集（IO-bound）</strong>：耗时主要在等待外部系统（网络、磁盘）。特征：CPU 占用低、吞吐瓶颈在等待。</li>
 <li><strong>CPU 密集（CPU-bound）</strong>：耗时主要在计算。特征：CPU 占用打满，等待可忽略。</li>
 <li><strong>线程池（<code>ThreadPoolExecutor</code>）</strong>：<code>concurrent.futures</code> 标准库；<code>submit()</code> 返回 <code>Future</code>（与 Java <code>ExecutorService.submit</code> 同名同义），<code>map()</code> 与内置 map 同形，<code>as_completed()</code> 按完成顺序消费。</li>
@@ -6088,7 +6088,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <ul>
 <li><strong>Java 服务里的调用边界</strong>：你的 Spring 服务不需要感知 Python 内部用的是线程还是进程——边界是 HTTP。Python AI 服务内部：IO（调模型/检索）用 asyncio；偶发的重 CPU 步骤（长文本统计、图片缩放）用 <code>asyncio.to_thread</code> 或常驻进程池包一层，对请求方仍是异步接口。</li>
 <li><strong>uvicorn 多 worker 是"进程池"的服务化形态</strong>：ch20 的 <code>uvicorn --workers 2</code> 就是每个 worker 一个进程（各自独立 GIL），并行能力来自进程模型——这也解释了为什么"进程内计数器限流"在多 worker 下必然失灵，必须用 Redis（ch19）。</li>
-<li><strong>模型推理不受纯 Python GIL 讨论</strong>:本地跑模型时，真正的计算在 torch/ONNX 的 C/CUDA 层，会释放 GIL；"预处理慢"与"推理慢"要分开测（衔接 ch59 的性能分析思路）。</li>
+<li><strong>模型推理不落在"纯 Python 受 GIL 限制"的讨论范围内</strong>：本地跑模型时，真正的计算发生在 torch/ONNX 的 C/CUDA 层（执行时会释放 GIL），所以"推理慢"通常不是 GIL 造成的；倒是喂给模型的前后处理若是纯 Python 代码，仍会被 GIL 卡住——"预处理慢"与"推理慢"要分开测（衔接 ch59 的性能分析思路）。</li>
 </ul>
 <h3 id="149">14.9 练习</h3>
 <ol>
@@ -6447,9 +6447,12 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
     <span class="n">app_env</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"dev"</span>                      <span class="c1"># ORDER_APP_ENV</span>
     <span class="n">openai_api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>                  <span class="c1"># ORDER_OPENAI_API_KEY——只在环境/.env，绝不硬编码</span>
 
-    <span class="c1"># 层级 2：真实环境变量优先级最高（Java 对照：System.getenv / Spring 的 profile 配置覆盖）</span>
-    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"ORDER_APP_ENV"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"production"</span>
-    <span class="n">s2</span> <span class="o">=</span> <span class="n">Settings</span><span class="p">(</span><span class="n">_env_file</span><span class="o">=</span><span class="s2">".env"</span><span class="p">)</span>
+<span class="c1">### 节选：以下为使用演示（完整版在示例的 main() 里）</span>
+<span class="c1">### 层级 2：真实环境变量优先级最高（Java 对照：System.getenv / Spring 的 profile 配置覆盖）</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"ORDER_APP_ENV"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"production"</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"ORDER_RATE_LIMIT_PER_MINUTE"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"120"</span>
+<span class="n">s2</span> <span class="o">=</span> <span class="n">Settings</span><span class="p">(</span><span class="n">_env_file</span><span class="o">=</span><span class="s2">".env"</span><span class="p">)</span>
 </code></pre></div>
 
 <p>真实运行输出（示例目录自带演示 .env，其中密钥是占位符）：</p>
@@ -6527,8 +6530,8 @@ python3<span class="w"> </span>ex_16_01_basics.py<span class="w">     </span><sp
 <p>测试/test_ch16.py 初版把环境变量前缀写成 <code>ORDER_SVC_APP_ENV</code>（作者混淆了 ch17 服务的 <code>ORDER_SVC_</code> 前缀与本章示例的 <code>ORDER_</code> 前缀），测试读到的是默认值而非注入值，断言失败。修复：对准模型里 <code>env_prefix</code> 的真实取值。教训：<code>extra="ignore"</code> 会<strong>静默忽略</strong>不认识的环境变量——前缀打错不报错，只是"配置没生效"，这是配置类 bug 最阴的形态；排查手段是打印 <code>Settings().model_dump()</code> 对比期望值。</p>
 <p><strong>错误二：<code>ValidationError</code> 的 <code>loc</code> 是空元组，前端表单对不上号</strong></p>
 <p>model_validator 抛出的跨字段错误 <code>loc=()</code>——没有字段可挂。修复思路：仍返回 422 但错误信息用业务语言（"质量投诉类退款单笔上限 10000"），前端按"表单级错误"展示；不要为了凑 loc 硬塞进某个字段。</p>
-<p><strong>错误三：<code>tags: list[str] = []</code> 的共享默认值</strong></p>
-<p>直接写 <code>= []</code> 时 Pydantic 会拒绝（或复制语义因版本而异，以官方文档为准），正确姿势是 <code>Field(default_factory=list)</code>——这与 ch06 的"默认参数陷阱"同根因：默认值在<strong>定义时求值一次</strong>，不是每次调用重建。</p>
+<p><strong>错误三：<code>tags: list[str] = []</code> 的可变默认值</strong></p>
+<p>在标准 Python 类里直接写 <code>= []</code> 会踩共享默认值陷阱——与 ch06 的"默认参数陷阱"同根因：默认值在<strong>定义时求值一次</strong>，不是每次调用重建。Pydantic v2 对此做了兜底：<code>= []</code> 是允许的，且每个实例会拿到深拷贝，不会共享同一个列表，所以这里并不会真出错。本书仍推荐 <code>Field(default_factory=list)</code>：一是意图更明确（"每次新建"是显式声明出来的），二是读者不必在"普通类"与"Pydantic 模型"之间切换两套默认值语义。</p>
 <p><strong>错误四：mypy 报错"Str 下不支持比较"之类，代码明明能跑</strong></p>
 <p>run log 第 5 节的实测：<code>mypy 示例代码/ch16_pydantic</code> 报 4 errors，全部是动态行为误报——宽松转换（str→int）、<code>_env_file</code> 魔法参数、<code>except Exception</code> 上的 <code>.errors()</code>。结论不是"关掉 mypy"，而是<strong>per-project 规则 + 人的判断</strong>：这类误报值得单独配置排除，而不是全局禁用严格模式（ch18 展开）。</p>
 <h3 id="168">16.8 企业场景中的使用方式</h3>
@@ -7213,6 +7216,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">get_order_cached</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">order_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ttl</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""cache-aside 模式：先查缓存 → 未命中回源 → 写回缓存（带 TTL）。"""</span>
+    <span class="k">global</span> <span class="n">_miss</span><span class="p">,</span> <span class="n">_hit</span>
     <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"order:</span><span class="si">{</span><span class="n">order_id</span><span class="si">}</span><span class="s2">"</span>
     <span class="n">cached</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -7411,7 +7415,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <li><strong>HEALTHCHECK</strong>：容器内健康自检（interval/timeout/retries），失败超过阈值编排器标记 unhealthy。</li>
 <li><strong>uvicorn 生产参数</strong>（EX-20-02 用 <code>--help</code> 实测存在）：<code>--workers</code>（进程数）、<code>--host 0.0.0.0</code>（容器内必须，否则端口映射不进来）、<code>--port</code>、<code>--timeout-keep-alive</code>（小于 LB 空闲超时，避免半开连接堆积）、<code>--limit-concurrency</code>（并发上限，保护下游）、<code>--timeout-graceful-shutdown</code>（优雅停机宽限期）、<code>--access-log</code>（排障期开，稳定后关）。</li>
 <li><strong>健康检查端点</strong>：<code>/healthz</code> 存活（进程活着即可 200）；"就绪"（依赖可用）与"存活"分离的思想（ch17 的 healthz 返回 backend 信息就是为排查留的钩子）。</li>
-<li><strong>requirements 锁定</strong>：<code>requirements-lock.txt</code>（pip freeze 产物）固定全量传递依赖版本——构建可复现的最低保障；更严格的 lock 工具链（pip-构建工具/uv 等）本书不展开。</li>
+<li><strong>requirements 锁定</strong>：<code>requirements-lock.txt</code>（pip freeze 产物）固定全量传递依赖版本——构建可复现的最低保障；更严格的 lock 工具链（pip-tools/uv 等）本书不展开。</li>
 <li><strong>.dockerignore</strong>：<code>.git/</code>、测试、示例不进镜像（镜像更小、构建上下文更快、少泄密面）。</li>
 </ul>
 <h3 id="204-dockerfile">20.4 最小完整示例：生产 Dockerfile 逐行解读</h3>
@@ -7867,7 +7871,7 @@ Java 代码        68           17           16       +1
 </code></pre></div>
 
 <h3 id="215">21.5 逐段解释：为什么"量错了"会连环出错</h3>
-<p><strong>（1）count_tokens 的双路径设计（llm_client.py）</strong>。我们的统一客户端提供 <code>count_tokens(text) -&gt; tuple[int, str]</code>：优先用 tiktoken 的 <code>cl100k_base</code> 词表精确计数，返回值第二项是<strong>计数方式标注</strong>——<code>"tiktoken:cl100k_base"</code> 或回退时的 <code>"approx:chars//4"</code>。为什么不静默回退？因为两种方式的误差可以达到 4 倍（上表），让调用方"以为自己在精确计数"是埋雷。tiktoken 0.14.0 首次调用 <code>get_encoding("cl100k_base")</code> 需要联网下载 BPE 词表（本书沙箱实测约 27 秒），之后缓存到 <code>TIKTOKEN_CACHE_DIR</code> 或系统临时目录，离线可用（第二次加载实测 0.14 秒）。</p>
+<p><strong>（1）count_tokens 的双路径设计（llm_client.py）</strong>。我们的统一客户端提供 <code>count_tokens(text) -&gt; tuple[int, str]</code>：优先用 tiktoken 精确计数（本书固定 <code>cl100k_base</code> 词表，保证全书 token 数字同一口径、可复算），返回值第二项是<strong>计数方式标注</strong>——<code>"tiktoken:cl100k_base"</code> 或回退时的 <code>"approx:chars//4"</code>。为什么不静默回退？因为两种方式的误差可以达到 4 倍（上表），让调用方"以为自己在精确计数"是埋雷。<strong>编码要按模型选</strong>：<code>cl100k_base</code> 对应 gpt-3.5/gpt-4 世代；gpt-4o 世代起主流是 o200k 系编码，同一文本在不同编码下的 token 数并不相同——接入具体模型时用 <code>tiktoken.encoding_for_model(...)</code> 或查官方文档选编码，本书的 token 数字都是"cl100k 口径"的教学数字，不要直接拿去给其他模型对账。tiktoken 0.14.0 首次调用 <code>get_encoding("cl100k_base")</code> 需要联网下载 BPE 词表（本书沙箱实测约 27 秒），之后缓存到 <code>TIKTOKEN_CACHE_DIR</code> 或系统临时目录，离线可用（第二次加载实测 0.14 秒）。</p>
 <p><strong>（2）为什么模型必须"按 token 思考"</strong>。模型输入输出都是整数序列（token id），嵌入表把每个 id 映射成一个向量（ch22）。所以"模型看到多少字"这个问题本身不成立，成立的是"看到多少 token"。<strong>Java 对照</strong>：就像你不会用"文件多大 MB"来预估"数据库多少行"，文本长度（字符）和模型消耗（token）是两个度量体系，中间隔着 tokenizer 这张表。</p>
 <p><strong>（3）预算不等式</strong>。一次请求能安全发出，需要满足：</p>
 <div class="codehilite"><pre><span></span><code>已用 prompt tokens + 你希望的最大输出 tokens ≤ 上下文窗口
@@ -9216,7 +9220,7 @@ python3<span class="w"> </span>示例代码/ch23_chat/ex_23_04_multimodal_struct
 </tr>
 <tr>
 <td>工具调用</td>
-<td><code>构建工具/tool_choice</code> 是否生效、<code>arguments</code> 是否合法 JSON、是否支持并行调用</td>
+<td><code>tools/tool_choice</code> 是否生效、<code>arguments</code> 是否合法 JSON、是否支持并行调用</td>
 <td>EX-24-03 的脚本在真服务上重跑</td>
 </tr>
 <tr>
@@ -9302,6 +9306,18 @@ python3<span class="w"> </span>示例代码/ch24_sdk/ex_24_04_retry_backoff.py
 考查点：生产架构。合格回答：租户配额与限流（429 前置）、Key 托管与轮换、审计日志（trace_id 贯穿）、成本记账（usage 落表）、兼容层（不同厂商适配）、熔断降级、缓存（相同请求哈希）。每层都要说清失败时的行为。</p>
 <p><strong>[模拟题] 3：<code>response_format</code> 的 json_schema 严格模式为什么比"提示词里求它输出 JSON"可靠？</strong>
 考查点：约束机制差异。合格回答：前者在解码阶段约束每一步 token 的选择（语法级保证），后者靠模型"自觉"（概率级倾向）；但严格模式未必被所有兼容服务支持，所以工程上两者都要配 Pydantic 校验与失败重试兜底。</p>
+<h3 id="2412-2026-api">24.12 2026 API 形态对照与本书边界</h3>
+<blockquote>
+<p>本书全部示例以 <strong>Chat Completions</strong> 打底——它是兼容面最广的接口形态（各家兼容服务几乎都以它为公共语言，24.5 的"兼容服务核实清单"正是围绕它设计）。但它不是 OpenAI 平台的全部：生产选型时你还需要知道下面这些关键词。本书对它们<strong>一律只点名、不展开教学</strong>，落到项目前以官方文档为准：</p>
+<ul>
+<li><strong>Responses API</strong>：2025 起官方主推的接口形态，内建工具（联网检索/文件检索等）与服务端状态（历史可由服务端重放）；与 Chat Completions 并存，迁移节奏自行评估；</li>
+<li><strong>流式工具调用</strong>：stream 模式下工具调用参数按 <code>delta.tool_calls</code> 分片到达，要按 index 增量聚合后再解析——生产高频痛点，本书 ch23 只演示了文本流的处理；</li>
+<li><strong>Batch API</strong>：离线批处理接口，约半价、非实时返回，适合不在线上等结果的任务；</li>
+<li><strong>reasoning 模型的参数差异</strong>：这类模型的部分采样参数（temperature/top_p 等）不生效或含义不同，以对应模型文档为准；</li>
+<li><strong>prompt caching</strong>：命中缓存的前缀按折扣计价，是"长固定前缀（system/工具声明）"场景的主要成本杠杆。</li>
+</ul>
+<p>边界声明：以上是"知道它存在、知道去哪核实"，不是"本书教过你怎么用"——任何一条进入你的项目前，先按 24.5 的核实方法对官方文档实测。</p>
+</blockquote>
 <hr />
 <h2 id="25-embedding">第 25 章 Embedding 与检索基础：把"意思"变成可计算的向量</h2>
 <blockquote>
@@ -10081,7 +10097,7 @@ python3<span class="w"> </span>示例代码/ch26_prompt/ex_26_03_format_guard.py
     <span class="n">main</span><span class="p">()</span>
 </code></pre></div>
 
-<div class="codehilite"><pre><span></span><code>### 真实运行输出（Python 3.14.7，tiktoken 精确计数）
+<div class="codehilite"><pre><span></span><code>### 真实运行输出（Python 3.14.7，tiktoken:cl100k_base 计数——本书统一口径；编码按目标模型选，见 ch21）
 [原始历史] 10 条消息，共 209 tokens
 
 [截断后]   保留 system + 最近 4 条，共 5 条，115 tokens（省 94）
@@ -11079,14 +11095,17 @@ O(n) 时间 / O(n) 空间；x in seen 是哈希查找 O(1)。
 
 <span class="c1">### ---- 修复版（人类补测试后迭代的结果）---------------------------------------</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">dedupe</span><span class="p">(</span><span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""保持首次出现顺序去重；可哈希元素直接比，dict 按内容签名比。"""</span>
+<span class="w">    </span><span class="sd">"""保持首次出现顺序去重；可哈希元素用自身当签名，unhashable 按内容签名比。"""</span>
     <span class="n">seen</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">out</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">Any</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">key</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">x</span>  <span class="c1"># 可哈希：直接当签名（str/int/tuple…）</span>
-        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>  <span class="c1"># noqa: PERF203 —— unhashable（如 dict）：用内容字符串当签名</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="n">kv</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="nb">hash</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># 探测可哈希性——赋值本身永远不会抛 TypeError，必须显式探测</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>  <span class="c1"># noqa: PERF203 —— unhashable（如 dict）：用内容签名当钥匙</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"__unhashable__"</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">x</span>  <span class="c1"># 可哈希：直接用自身当签名（str/int/tuple…）</span>
         <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
             <span class="n">seen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
             <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
@@ -13745,9 +13764,11 @@ python3<span class="w"> </span>综合项目/项目一_文档知识库/eval/run_e
     <span class="n">chunks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Chunk</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">doc_id</span><span class="p">,</span> <span class="p">(</span><span class="n">dept</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span> <span class="ow">in</span> <span class="n">RAW_DOCS</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">piece</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">splitter</span><span class="o">.</span><span class="n">split_text</span><span class="p">(</span><span class="n">text</span><span class="p">)):</span>
+            <span class="n">vec</span> <span class="o">=</span> <span class="n">emb</span><span class="o">.</span><span class="n">embed_one</span><span class="p">(</span><span class="n">piece</span><span class="p">)</span>                   <span class="c1"># 入库前归一化：与 search 的查询侧</span>
+            <span class="n">vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vec</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vec</span><span class="p">)</span>  <span class="c1"># 对称归一化，点积才是真余弦（ch33 纪律）</span>
             <span class="n">chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Chunk</span><span class="p">(</span><span class="n">chunk_id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">doc_id</span><span class="si">}</span><span class="s2">#</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">doc_id</span><span class="o">=</span><span class="n">doc_id</span><span class="p">,</span>
                                 <span class="n">department</span><span class="o">=</span><span class="n">dept</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">piece</span><span class="p">,</span>
-                                <span class="n">vector</span><span class="o">=</span><span class="n">emb</span><span class="o">.</span><span class="n">embed_one</span><span class="p">(</span><span class="n">piece</span><span class="p">)))</span>
+                                <span class="n">vector</span><span class="o">=</span><span class="n">vec</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))</span>
     <span class="k">return</span> <span class="n">chunks</span>
 
 
@@ -14819,8 +14840,8 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <p><strong>工具渲染</strong>：<code>render_text_description([tools])</code> / <code>render_text_description_and_args([tools])</code> 把工具列表渲染成"模型视角的菜单"文本——调试描述质量的直接手段。</p>
 <p><strong>Java 对照</strong>：<code>args_schema</code> ≈ 用 Bean Validation 注解声明的 DTO（描述进 schema 给"调用方"看）；<code>ToolException</code> + <code>handle_tool_error</code> ≈ 自定义业务异常 + 统一异常处理器（<code>@ControllerAdvice</code>）——区别是"异常处理器"的输出对象是模型，文案要按"模型读得懂"来写。</p>
 <h3 id="394-tool-agent">39.4 最小完整示例：从 @tool 到 Agent 内的错误恢复</h3>
-<p><strong>EX-39-01 | 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py（完整可运行）</strong></p>
-<div class="codehilite"><pre><span></span><code><span class="c1">### EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py</span>
+<p><strong>EX-39-01 | 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py（完整可运行）</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1">### EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py</span>
 <span class="sd">"""完整可运行（离线）：@tool 把普通函数变成 BaseTool——docstring 变描述、类型注解变</span>
 <span class="sd">参数 schema；对照第四部分裸 SDK 里"手写 JSON Schema + 手写执行分发"两份代码。</span>
 <span class="sd">"""</span>
@@ -14889,8 +14910,8 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
     LangChain 用 @tool 把两份合成一份：schema 自动生成，name 自动路由。
 </code></pre></div>
 
-<p><strong>EX-39-02 | 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py（完整可运行）</strong></p>
-<div class="codehilite"><pre><span></span><code><span class="c1">### EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py</span>
+<p><strong>EX-39-02 | 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py（完整可运行）</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1">### EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py</span>
 <span class="sd">"""完整可运行（离线）：</span>
 <span class="sd">[1] args_schema 挂自定义 Pydantic 模型：字段描述进 schema、默认值、枚举约束；</span>
 <span class="sd">[2] ToolException：工具"预期内失败"的表达方式，三种 handle_tool_error 策略实测；</span>
@@ -14995,8 +15016,8 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
     设置 handle_validation_error 后 → '参数不合法：unit 只能是 celsius 或 fahrenheit'
 </code></pre></div>
 
-<p><strong>EX-39-03 | 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py（完整可运行）</strong></p>
-<div class="codehilite"><pre><span></span><code><span class="c1">### EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py</span>
+<p><strong>EX-39-03 | 示例代码/ch39_lc_tools/ex_39_03_tool_render.py（完整可运行）</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1">### EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_tools/ex_39_03_tool_render.py</span>
 <span class="sd">"""完整可运行（离线）：</span>
 <span class="sd">[1] 多工具 + render_text_description_and_args：模型菜单的真实形态；</span>
 <span class="sd">[2] @tool 的 return_direct 选项；</span>
@@ -15135,9 +15156,9 @@ divide(a: 'int', b: 'int') -&gt; 'float' - 两数相除。, args: {'a': {'title'
 <h3 id="396">39.6 安装 / 文件位置 / 运行命令</h3>
 <div class="codehilite"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">   </span><span class="c1"># langchain==1.4.6 / langchain-core==1.6.12</span>
 
-python3<span class="w"> </span>示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py
-python3<span class="w"> </span>示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py
-python3<span class="w"> </span>示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py
+python3<span class="w"> </span>示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py
+python3<span class="w"> </span>示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py
+python3<span class="w"> </span>示例代码/ch39_lc_tools/ex_39_03_tool_render.py
 
 python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>测试/test_ch39.py<span class="w"> </span>-q
 </code></pre></div>
@@ -15171,8 +15192,10 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
         <span class="k">raise</span> <span class="n">ToolException</span><span class="p">(</span><span class="s2">"金额超限：单笔上限 10000 元"</span><span class="p">)</span>
     <span class="k">return</span> <span class="sa">f</span><span class="s2">"已转账 </span><span class="si">{</span><span class="n">amount</span><span class="si">}</span><span class="s2"> 元"</span>
 
-<span class="n">transfer_money</span><span class="o">.</span><span class="n">handle_tool_error</span> <span class="o">=</span> <span class="s2">"转账失败：</span><span class="si">{error}</span><span class="s2">。建议：拆分金额或转人工审批。"</span><span class="o">.</span><span class="n">format</span>
-<span class="c1">### 更清晰的可调用写法：</span>
+<span class="c1">### 策略一（str）：固定文案——不管异常是什么，返回同一段话</span>
+<span class="n">transfer_money</span><span class="o">.</span><span class="n">handle_tool_error</span> <span class="o">=</span> <span class="s2">"转账失败。建议：拆分金额或转人工审批。"</span>
+<span class="c1">### 策略二（callable）：按异常对象生成文案——收到的就是异常本身，用 f-string 取 e；</span>
+<span class="c1">### 注意别写成 "...{error}...".format：format 会把异常当位置参数，具名占位符直接 KeyError（实测）</span>
 <span class="n">transfer_money</span><span class="o">.</span><span class="n">handle_tool_error</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"转账失败：</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">。建议：拆分金额或转人工审批。"</span>
 </code></pre></div>
 
@@ -16166,7 +16189,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
     <span class="k">except</span> <span class="ne">NotImplementedError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"    NotImplementedError（异常消息为空——基类只声明契约，不解释）：</span><span class="si">{</span><span class="n">e</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/..."</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/..."</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s2">"    response_format/state_schema/checkpointer 等——运行记录见 part07.md）："</span><span class="p">)</span>
     <span class="n">script</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">([</span>
         <span class="n">AIMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">tool_calls</span><span class="o">=</span><span class="p">[</span>
@@ -16210,7 +16233,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 [0] 不实现 bind_tools 会怎样（真实报错，42.3 详述）：
     NotImplementedError（异常消息为空——基类只声明契约，不解释）：NotImplementedError()
 
-[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/...
+[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/...
     response_format/state_schema/checkpointer 等——运行记录见 part07.md）：
     返回类型 = CompiledStateGraph（一个 LangGraph 编译图，第八部分的主角）
     state keys = ['messages']
@@ -17346,7 +17369,7 @@ python3<span class="w"> </span>示例代码/ch46_tool_loop/ex_46_01_tool_loop.py
 <strong>代码 2</strong>：实现"最多 3 轮工具调用"的业务保险丝：状态里加 <code>tool_rounds</code>（自增 reducer），route 函数在 <code>tool_rounds &gt;= 3</code> 时强制去 <code>END</code>。
 <strong>调试题</strong>：模型第二轮的请求里 <code>tool_calls</code> 为空、content 也是空——查消息序列发现问题出在第一轮。说出两个可能根因。</p>
 <h4 id="_67">参考答案</h4>
-<p>基础 1：agent 节点、tools 节点、<code>agent →(条件)→ 构建工具/END</code> 条件边、<code>tools → agent</code> 回边。基础 2：它由 ToolNode 生成，是"工具执行结果"的载体，与发起调用的 AIMessage 通过 tool_call_id 配对。代码 1：脚本追加 <code>{"tool_calls": [{"id": "call_003", "name": "query_order_logistics", "arguments": {"order_id": "ORD-1001"}}]}</code>，最终总结条目前移。代码 2：</p>
+<p>基础 1：agent 节点、tools 节点、<code>agent →(条件)→ tools/END</code> 条件边、<code>tools → agent</code> 回边。基础 2：它由 ToolNode 生成，是"工具执行结果"的载体，与发起调用的 AIMessage 通过 tool_call_id 配对。代码 1：脚本追加 <code>{"tool_calls": [{"id": "call_003", "name": "query_order_logistics", "arguments": {"order_id": "ORD-1001"}}]}</code>，最终总结条目前移。代码 2：</p>
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">AgentState</span><span class="p">(</span><span class="n">MessagesState</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="n">tool_rounds</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="p">(</span><span class="n">a</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">b</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)]</span>
 <span class="c1">### tools 节点返回 {"tool_rounds": 1}；route 改为：</span>
@@ -17530,7 +17553,7 @@ python3<span class="w"> </span>示例代码/ch47_persistence/ex_47_03_time_trave
 <strong>代码 2</strong>：用时间旅行实现"从第 1 轮结束的检查点重放，但换一句用户输入"。
 <strong>调试题</strong>：同事说"SqliteSaver 恢复后消息重复了两遍"。查他的代码：两个 with 块用了<strong>同一个 thread_id</strong> 且第二次 invoke 传了完整历史输入。说出根因与修法。</p>
 <h4 id="_68">参考答案</h4>
-<p>基础 1：流程已结束；流程停在 approval 节点等人工决策。基础 2：每轮 invoke 产生 start 前/support 前/结束共 3 个检查点（EX-47-01 输出的 next 序列可数）。代码 2：取 <code>next == ('第二步节点',)</code> 的历史检查点，<code>invoke({"messages": [HumanMessage("新输入")]}, 旧config)</code>。调试题：恢复 invoke 的输入应该是<strong>增量</strong>（只放新增消息）——恢复时图会从快照里的旧历史继续，再把输入的"完整历史"追加了一遍，消息翻倍。修法：恢复调用只传新消息，或干脆 <code>invoke(None, cfg)</code>（resume 场景）。</p>
+<p>基础 1：流程已结束；流程停在 approval 节点等人工决策。基础 2：每轮 invoke 产生 start 前/support 前/结束共 3 个检查点（EX-47-01 输出的 next 序列可数）。代码 2：取 <code>next == ('第二步节点',)</code> 的历史检查点，<code>invoke({"messages": [HumanMessage("新输入")]}, 旧config)</code>。调试题：恢复 invoke 的输入应该是<strong>增量</strong>（只放新增消息）——恢复时图会从快照里的旧历史继续，再把输入的"完整历史"追加了一遍，消息翻倍。修法：恢复调用只传新消息。注意 <code>invoke(None, cfg)</code> 不是恢复手段——那是 ch47 的时间旅行语义（从历史检查点<strong>原路重放</strong>）；若是 interrupt 后的人工恢复，必须用 <code>Command(resume=...)</code>（ch48）。</p>
 <h3 id="4710">47.10 自测检查表</h3>
 <ul>
 <li>[ ] 我能说出 checkpointer / thread_id / StateSnapshot 三者的关系；</li>
@@ -19158,7 +19181,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <hr />
 <h2 id="55-mcp">第 55 章 MCP：把工具暴露给模型的标准化协议</h2>
 <blockquote>
-<p><strong>本章目标</strong>：讲清 MCP（Model Context Protocol）的定位——<strong>它是协议不是框架</strong>；掌握 host/client/server 角色分工与 构建工具/resources/prompts 三原语；按官方规范（2026-07-28 版）讲传输方式与安全边界；动手跑通"最小 MCP server → 官方 SDK 客户端 → langchain-mcp-adapters → create_agent"的完整闭环。
+<p><strong>本章目标</strong>：讲清 MCP（Model Context Protocol）的定位——<strong>它是协议不是框架</strong>；掌握 host/client/server 角色分工与 tools/resources/prompts 三原语；按官方规范（2026-07-28 版）讲传输方式与安全边界；动手跑通"最小 MCP server → 官方 SDK 客户端 → langchain-mcp-adapters → create_agent"的完整闭环。
 <strong>前置知识</strong>：ch39（工具三件套：name/description/inputSchema）、ch42（create_agent 的工具契约）。
 <strong>学完你能做什么</strong>：判断团队该不该引入 MCP；自己写一个 stdio MCP server 并接到 LangChain Agent；把"MCP 与 REST API 的关系"讲清楚。</p>
 </blockquote>
@@ -19166,14 +19189,14 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <p>某公司（合成案例）先做了排障 AI 助手，Python 工具直连内部 API；半年后知识库问答、报表助手、运维 Agent 相继立项——每个应用都把"查工单、查计划"的工具代码抄一遍，工具实现改一处要同步四处。更麻烦的是权限：每个应用自己实现一遍"谁能调什么"。</p>
 <p>MCP 的目标就是消灭这种重复：<strong>工具的实现方（server）只写一次，任何支持 MCP 的应用（host）都能发现并调用它</strong>。类比 Java 世界：每个应用各自手写 JDBC 连接池 vs 统一的 JDBC 驱动标准——数据库只实现一次驱动，所有应用受益。</p>
 <h3 id="552">55.2 一句话解释 + 生活类比 + 类比边界</h3>
-<p><strong>一句话解释</strong>：MCP 是一个开放协议，用 JSON-RPC 2.0 标准化"AI 应用（host，内嵌 client）"与"工具/数据提供方（server）"之间的消息——发现工具（构建工具/list）、调用工具（构建工具/call）、读资源（resources）、取提示模板（prompts）。</p>
+<p><strong>一句话解释</strong>：MCP 是一个开放协议，用 JSON-RPC 2.0 标准化"AI 应用（host，内嵌 client）"与"工具/数据提供方（server）"之间的消息——发现工具（tools/list）、调用工具（tools/call）、读资源（resources）、取提示模板（prompts）。</p>
 <p><strong>规范核实声明</strong>：本节以下事实<strong>于 2026-10-19 通过 WebFetch 访问 modelcontextprotocol.io/specification/latest 核实</strong>，当次解析到的版本化页面为 <strong>2026-07-28</strong>（规范正文自述"The specification ... based on the TypeScript schema in schema.ts（2026-07-28）"）。要点：①通信三角色 <strong>Hosts</strong>（发起连接的 LLM 应用）、<strong>Clients</strong>（host 内的连接器）、<strong>Servers</strong>（提供上下文与能力的服务）；②Server 提供三原语 <strong>Resources</strong>（上下文与数据）、<strong>Prompts</strong>（模板化消息）、<strong>Tools</strong>（供模型执行的函数）；③Client 可向 server 提供 <strong>Elicitation</strong>（服务端向用户索要额外信息的能力）；④传输绑定两种：<strong>stdio</strong>（客户端拉起子进程，标准流上传 newline 分隔消息）与 <strong>Streamable HTTP</strong>（每条消息 POST 到单一 MCP 端点，响应为 JSON 或 request-scoped SSE 流）；⑤安全原则：用户同意与控制（调用任何工具前须用户同意）、数据隐私、工具安全（<strong>工具描述等元数据视为不可信内容</strong>，除非来自可信 server）。另一要点与直觉相反：2026-07-28 版规范明确 "<strong>servers do not initiate JSON-RPC requests</strong>"（服务端不发 Request 只回 Response），需要模型/用户输入时通过结果语义表达；早期版本（含 initialize 握手与 server 主动请求）按"向后兼容"章节由实现方协商兼容。<strong>规范演进快，读者落地前请以当日官网为准</strong>——本节给出的版本号与日期即为本书的可追溯锚点。</p>
-<p><strong>生活类比</strong>：MCP ≈ JDBC（统一接口标准），MCP server ≈ 数据库驱动，host ≈ 使用驱动的应用（IDE/DataGrip），构建工具/resources/prompts ≈ 驱动暴露的执行/元数据/预编译语句能力。<strong>类比边界</strong>：①JDBC 只管"连接与执行"，权限模型在数据库侧；MCP 把"用户同意"列为协议级原则——<strong>但同样只是原则</strong>，规范明说"MCP itself cannot enforce these security principles at the protocol level"，强制力仍在实现方（你的 host 代码）；②JDBC 面向 SQL 语义，MCP 面向"模型可用的能力"——inputSchema 是给模型读的，不是给编译器读的。</p>
+<p><strong>生活类比</strong>：MCP ≈ JDBC（统一接口标准），MCP server ≈ 数据库驱动，host ≈ 使用驱动的应用（IDE/DataGrip），tools/resources/prompts ≈ 驱动暴露的执行/元数据/预编译语句能力。<strong>类比边界</strong>：①JDBC 只管"连接与执行"，权限模型在数据库侧；MCP 把"用户同意"列为协议级原则——<strong>但同样只是原则</strong>，规范明说"MCP itself cannot enforce these security principles at the protocol level"，强制力仍在实现方（你的 host 代码）；②JDBC 面向 SQL 语义，MCP 面向"模型可用的能力"——inputSchema 是给模型读的，不是给编译器读的。</p>
 <h3 id="553">55.3 正式原理与准确术语</h3>
 <p><strong>定位：协议不是框架</strong>。MCP 不决定你怎么写工具逻辑、怎么做鉴权、怎么部署——它只标准化<strong>消息</strong>（JSON-RPC 2.0：请求有 id、通知无 id、响应带 result|error）与<strong>能力发现</strong>（initialize 握手中的能力协商）。你的业务逻辑一行不改地留在 server 里。</p>
 <p><strong>三种角色</strong>（2026-07-28 规范术语）：Host（LLM 应用本体，如 IDE/聊天客户端/你的 Agent 服务）内嵌一个或多个 Client；每个 Client 与一个 Server 维持一条逻辑连接。<strong>对你（Java 工程师）最实际的认知</strong>：LangChain/你的 Agent 代码扮演 host+client；你写的 MCP server 就是"把工具实现搬出应用"的那一端。</p>
 <p><strong>三原语</strong>：
-- <strong>Tools</strong>（模型控制）：函数能力，<code>构建工具/list</code> 返回 name/description/inputSchema 三件套（与 ch39 的 @tool 自动生成物同构——这正是 langchain-mcp-adapters 能无缝翻译的原因），<code>构建工具/call</code> 执行。工具内部异常<strong>不产生 JSON-RPC error</strong>，而是返回 <code>isError: true</code> 的正常响应（错误即数据，协议层的明确设计）；
+- <strong>Tools</strong>（模型控制）：函数能力，<code>tools/list</code> 返回 name/description/inputSchema 三件套（与 ch39 的 @tool 自动生成物同构——这正是 langchain-mcp-adapters 能无缝翻译的原因），<code>tools/call</code> 执行。工具内部异常<strong>不产生 JSON-RPC error</strong>，而是返回 <code>isError: true</code> 的正常响应（错误即数据，协议层的明确设计）；
 - <strong>Resources</strong>（应用控制）：上下文数据（文件/记录/快照），URI 标识，给"人或应用"消费，可订阅变更；
 - <strong>Prompts</strong>（用户控制）：模板化提问骨架，给人选用。</p>
 <p><strong>传输方式（2026-07-28 规范原文归纳）</strong>：协议语义与传输无关（binding 只管帧与投递）。标准绑定两种——<strong>stdio</strong>：newline 分隔的 JSON-RPC 消息走子进程标准流，stdout 只承载协议（任何 print 到 stdout 都会污染协议帧——55.7 的真实翻车点）；<strong>Streamable HTTP</strong>：消息 POST 到单一端点，响应为 JSON 或 SSE 流，适合远程/托管 server。取消语义：stdio 发 <code>notifications/cancelled</code>，Streamable HTTP 直接关闭响应流。选择依据：</p>
@@ -19231,14 +19254,14 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
                <span class="s2">"capabilities"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"roots"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"listChanged"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span> <span class="s2">"sampling"</span><span class="p">:</span> <span class="p">{}},</span>
                <span class="s2">"clientInfo"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"textbook-client"</span><span class="p">,</span> <span class="s2">"version"</span><span class="p">:</span> <span class="s2">"1.0.0"</span><span class="p">}}}</span>
 <span class="c1">### initialize 响应（服务端版本+能力清单）→ notifications/initialized 通知（无 id）</span>
-<span class="c1">### → 构建工具/list 响应（name/description/inputSchema）→ 构建工具/call（成功 isError:false / 业务异常 isError:true）</span>
+<span class="c1">### → tools/list 响应（name/description/inputSchema）→ tools/call（成功 isError:false / 业务异常 isError:true）</span>
 </code></pre></div>
 
 <div class="codehilite"><pre><span></span><code>### 真实运行输出（节选；完整输出含全部帧）
 ── ① initialize 请求（JSON-RPC Request）──
 {"jsonrpc": "2.0", "id": 1, "method": "initialize",
  "params": {"protocolVersion": "2025-11-25", ...}}
-── ④ 构建工具/list 响应（工具 = name + description + inputSchema）──
+── ④ tools/list 响应（工具 = name + description + inputSchema）──
 {"jsonrpc": "2.0", "id": 2, "result": {"tools": [
     {"name": "get_plan",
      "description": "按计划号查询生产计划详情（产品/数量/状态）。",
@@ -19307,8 +19330,8 @@ MCP 规范约束：服务端不发 Request 只回 Response（2026-07-28 版核�
     <span class="k">async</span> <span class="k">with</span> <span class="n">stdio_client</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="k">as</span> <span class="p">(</span><span class="n">read_stream</span><span class="p">,</span> <span class="n">write_stream</span><span class="p">):</span>
         <span class="k">async</span> <span class="k">with</span> <span class="n">ClientSession</span><span class="p">(</span><span class="n">read_stream</span><span class="p">,</span> <span class="n">write_stream</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
             <span class="n">init</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>          <span class="c1"># 握手：协议版本+能力协商</span>
-            <span class="n">tools</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">list_tools</span><span class="p">()</span>          <span class="c1"># 构建工具/list</span>
-            <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">call_tool</span><span class="p">(</span><span class="s2">"get_plan"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"plan_id"</span><span class="p">:</span> <span class="s2">"P-1002"</span><span class="p">})</span>   <span class="c1"># 构建工具/call</span>
+            <span class="n">tools</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">list_tools</span><span class="p">()</span>          <span class="c1"># tools/list</span>
+            <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">call_tool</span><span class="p">(</span><span class="s2">"get_plan"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"plan_id"</span><span class="p">:</span> <span class="s2">"P-1002"</span><span class="p">})</span>   <span class="c1"># tools/call</span>
             <span class="n">bad</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">call_tool</span><span class="p">(</span><span class="s2">"get_plan"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"plan_id"</span><span class="p">:</span> <span class="s2">"P-9999"</span><span class="p">})</span>  <span class="c1"># 业务错误</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"isError=</span><span class="si">{</span><span class="n">ok</span><span class="o">.</span><span class="n">isError</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">ok</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"isError=</span><span class="si">{</span><span class="n">bad</span><span class="o">.</span><span class="n">isError</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">bad</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">[:</span><span class="mi">40</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -19322,21 +19345,21 @@ Processing request of type CallToolRequest
 协议版本（SDK 侧协商）: 2025-11-25
 服务端名称           : plan-tools
 服务端能力           : ['experimental', 'prompts', 'resources', 'tools']
-── 构建工具/list 返回 ──
+── tools/list 返回 ──
 - get_plan: 按计划号查询生产计划详情（产品/数量/状态）。
   inputSchema 必填参数: ['plan_id']
 - list_delayed_plans: 列出所有处于延期状态的生产计划。
   inputSchema 必填参数: []
-── 构建工具/call get_plan(P-1002) ──
+── tools/call get_plan(P-1002) ──
 isError=False | content={ "plan_id": "P-1002", ... "status": "延期" }
-── 构建工具/call get_plan(P-9999)（工具内部抛 ValueError）──
+── tools/call get_plan(P-9999)（工具内部抛 ValueError）──
 isError=True | content=Error executing tool get_plan: 计划 P-9999 不存在
 </code></pre></div>
 
 <p><strong>EX-55-04 | 示例代码/ch55_mcp/ex_55_04_mcp_langchain_adapter.py（完整可运行）</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="c1">### EX-55-04 | langchain-mcp-adapters：把 MCP 工具转成 LangChain BaseTool 并接入 create_agent | 运行: python3 示例代码/ch55_mcp/ex_55_04_mcp_langchain_adapter.py</span>
 <span class="sd">"""实测（langchain-mcp-adapters 0.3.2 + mcp 1.30.0，2026-10-19 真实运行）：</span>
-<span class="sd">load_mcp_tools(session) 把 构建工具/list 的结果翻译成 BaseTool——</span>
+<span class="sd">load_mcp_tools(session) 把 tools/list 的结果翻译成 BaseTool——</span>
 <span class="sd">name/description 原样保留，inputSchema 变成参数 schema；转换后的工具</span>
 <span class="sd">本地直调走协议，交给 create_agent 后与 @tool 写的完全同构（源码见示例文件）。"""</span>
 <span class="n">tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BaseTool</span><span class="p">]</span> <span class="o">=</span> <span class="k">await</span> <span class="n">load_mcp_tools</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>     <span class="c1"># MCP → LangChain 的协议翻译层</span>
@@ -19382,7 +19405,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <p><strong>① <code>ModuleNotFoundError: No module named 'mcp'</code></strong>：未安装官方 SDK。修复：<code>pip install mcp</code>（版本以 pip 实测为准，本书 1.30.0）；教材代码对 SDK API（FastMCP/ClientSession/StdioServerParameters）依赖较强，<strong>升级后先跑 测试/test_ch55.py 回归</strong>。</p>
 <p><strong>② <code>NotImplementedError</code>（对 MCP 工具调 <code>.invoke()</code>）</strong>：adapters 转换的工具是 async-only。修复：用 <code>await tool.ainvoke(...)</code>，Agent 用 <code>await agent.ainvoke(...)</code>（EX-55-04 的写法）。这个报错消息为空（基类只声明契约），看到空 NotImplementedError 先想到"同步/异步用错"。</p>
 <p><strong>③ 客户端解析协议失败 / 卡在 initialize</strong>：server 往 stdout 打了日志（print/logging 默认走 stdout）。修复：server 内一切输出走 stderr（logging.basicConfig(stream=sys.stderr)）；检查依赖库是否有"print 调试"残留。<strong>排障技巧：先直接跑 server 脚本，凡 stdout 出现非 JSON 行都是嫌疑人。</strong></p>
-<p><strong>④ <code>KeyError: 'plan_id'</code> / 工具参数缺失</strong>：client 传参与 inputSchema 不符。修复：对照 构建工具/list 返回的 inputSchema（required 字段）；在 host 侧用 Pydantic 再校验一次（ch54 纪律不因 MCP 而豁免）。</p>
+<p><strong>④ <code>KeyError: 'plan_id'</code> / 工具参数缺失</strong>：client 传参与 inputSchema 不符。修复：对照 tools/list 返回的 inputSchema（required 字段）；在 host 侧用 Pydantic 再校验一次（ch54 纪律不因 MCP 而豁免）。</p>
 <h3 id="558-spring-boot">55.8 企业场景中的使用方式（Spring Boot 集成视角）</h3>
 <ul>
 <li><strong>什么时候把 Java 服务包成 MCP server</strong>：同一批工具将被 ≥2 个 AI 应用复用，或工具方（Java 团队）想自治维护工具版本——在 Java 侧用 MCP Java SDK（版本待核实，落地前查官方 GitHub）或侧车进程（Python/Node stdio server 包 Java REST）暴露 MCP；只服务一个应用时，直接 HTTP 工具（ch56）更简单。</li>
@@ -19397,7 +19420,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <strong>代码 1</strong>：给 EX-55-02 增加 <code>query_workorder</code> 工具（参数 workorder_id 校验 <code>^WO-\d+$</code>，不匹配抛 ValueError），并用 测试/test_ch55 的模式补一个测试。<strong>代码 2</strong>：写一个"权限包装器"——host 侧在 call_tool 前检查本地权限表，拒绝时根本不发协议请求，并写测试。
 <strong>调试题</strong>：客户端 initialize 卡住 30 秒后超时，server 单独运行正常。最可能原因？</p>
 <h4 id="_79">参考答案</h4>
-<p>基础 1：Hosts（LLM 应用）/Clients（host 内连接器）/Servers（能力提供方）；Tools（模型控制）/Resources（应用控制）/Prompts（用户控制）。基础 2：isError=true 是 构建工具/call 的正常响应（工具业务失败，模型可读可改路）；error 帧是协议级事故（未知方法/解析失败等），模型一般不可恢复。代码 1：装饰器照抄 get_plan 形状，schema 校验放函数体内或用 Pydantic；测试用 stdio_client 拉起后 call_tool 断言 isError=True。代码 2：包装函数查 <code>PERMS[role] &amp; {tool_name}</code>，未授权直接 raise——测试断言 respx/server 收不到请求。调试题：server 的 stdout 被某依赖打印污染（进度条/横幅），协议帧解析失败——把依赖输出重定向 stderr，或用 <code>-W</code> / 环境变量关横幅。</p>
+<p>基础 1：Hosts（LLM 应用）/Clients（host 内连接器）/Servers（能力提供方）；Tools（模型控制）/Resources（应用控制）/Prompts（用户控制）。基础 2：isError=true 是 tools/call 的正常响应（工具业务失败，模型可读可改路）；error 帧是协议级事故（未知方法/解析失败等），模型一般不可恢复。代码 1：装饰器照抄 get_plan 形状，schema 校验放函数体内或用 Pydantic；测试用 stdio_client 拉起后 call_tool 断言 isError=True。代码 2：包装函数查 <code>PERMS[role] &amp; {tool_name}</code>，未授权直接 raise——测试断言 respx/server 收不到请求。调试题：server 的 stdout 被某依赖打印污染（进度条/横幅），协议帧解析失败——把依赖输出重定向 stderr，或用 <code>-W</code> / 环境变量关横幅。</p>
 <h4 id="_80">待核实（本书诚实声明）</h4>
 <table>
 <thead>
@@ -19432,7 +19455,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <h3 id="5510">55.10 自测检查表</h3>
 <ul>
 <li>[ ] 我能说清 MCP 是协议不是框架，以及它替换与不替换的东西；</li>
-<li>[ ] 我能手画 initialize/构建工具/list/构建工具/call 的 JSON-RPC 帧；</li>
+<li>[ ] 我能手画 initialize/tools/list/tools/call 的 JSON-RPC 帧；</li>
 <li>[ ] 我能解释 stdio 下 stdout 纪律与 isError 双层错误语义；</li>
 <li>[ ] 我能在"包 MCP server vs 直接 HTTP 工具"之间给出选择依据；</li>
 <li>[ ] 我知道 MCP 不豁免任何一条 ch54 治理防线，并知道五条"待核实"边界。</li>
@@ -19465,12 +19488,12 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <h3 id="563">56.3 正式原理与准确术语</h3>
 <p><strong>HTTP 工具封装四件套</strong>（EX-56-01）：
 1. <strong>专用 httpx.Client</strong>：连接池复用 + 超时三件套（connect/read/pool，ch15），绝不每调用新建；
-2. <strong>契约模型</strong>：响应字段用 Pydantic 模型固定（契约即代码，与 data/<em>.json 对拍——项目三的契约测试）；
-3. </em><em>错误翻译三层</em><em>：404 → 业务数据（"不存在"返回给模型）；5xx/超时/连接失败 → JavaServiceError（事故，交给上层重试/熔断）；4xx 其他 → 原样上抛（调用方的 bug）。</em><em>关键判断：哪些错误是"数据"，哪些是"事故"</em><em>；
-4. </em><em>描述纪律</em>*：docstring 写"何时用/何时不用"（ch54 三要素）。</p>
+2. <strong>契约模型</strong>：响应字段用 Pydantic 模型固定（契约即代码，与 data/*.json 对拍——项目三的契约测试）；
+3. <strong>错误翻译三层</strong>：404 → 业务数据（"不存在"返回给模型）；5xx/超时/连接失败 → JavaServiceError（事故，交给上层重试/熔断）；4xx 其他 → 原样上抛（调用方的 bug）。<strong>关键判断：哪些错误是"数据"，哪些是"事故"</strong>；
+4. <strong>描述纪律</strong>：docstring 写"何时用/何时不用"（ch54 三要素）。</p>
 <p><strong>长任务模式</strong>（EX-56-02）状态机：<code>pending → running → succeeded | failed | cancelled</code>。契约：POST → <strong>202</strong> <code>{task_id, poll}</code>；GET → 状态+result；DELETE → 202（协作式取消请求）或 409（已终态）。客户端三纪律：提交后只拿 task_id；轮询带间隔与上限；取消是"请求+确认"两步。项目三把同一模式反过来用：Python FastAPI 对外当服务方（POST /analysis），Java 的慢操作依然同步——<strong>角色对调，契约不变</strong>。</p>
 <p><strong>超时与重试语义</strong>（EX-56-03 的四条）：
-- <strong>有限次数</strong>：max_attempts 封顶（本书 3 次）——最坏情况耗时 = Σ(每次超时)+Σ(退避)，可预算可告警。<strong>算例</strong>（项目三默认参数）：read 超时 5s、max_attempts=3、退避 0.05s/0.1s（含抖动 ±0.05s）→ 最坏 ≈ 5+0.05+5+0.1+5 ≈ <strong>15.2s</strong>。把这个数写进任务状态机的超时与前端提示——"分析最多等 15 秒"是可承诺的 SLA，"再等等"不是。若上游 SLA 是 P99=800ms，把 read 收到 2s → 最坏 ≈ 6.2s；
+- <strong>有限次数</strong>：max_attempts 封顶（本书 3 次）——最坏情况耗时 = Σ(每次超时)+Σ(退避)，可预算可告警。<strong>算例</strong>（项目三默认参数）：read 超时 5s、max_attempts=3、退避 0.05s/0.1s（各叠加 uniform(0, 0.05s) 抖动，取上限）→ 最坏 ≈ 5+0.1+5+0.15+5 ≈ <strong>15.25s</strong>。把这个数向上取整写进任务状态机的超时与前端提示（如"分析最多等 16 秒"）——可承诺的 SLA，"再等等"不是。若上游 SLA 是 P99=800ms，把 read 收到 2s → 最坏 ≈ 6.25s；
 - <strong>幂等才自动重试</strong>：GET 天然幂等；POST 必须携带 Idempotency-Key（服务端按 key 去重）——项目三的幂等键由 trace_id+内容哈希确定性生成，同一次分析内重试同 key；
 - <strong>退避+抖动</strong>：base×2^n + 随机抖动，防恢复瞬间的重试风暴；
 - <strong>可重试白名单</strong>：超时/连接错误/5xx 重试；422/404 等业务错误绝不重试（重试一个"参数错了"的请求只会得到同样的错误，纯属烧钱）。</p>
@@ -19506,7 +19529,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 </tbody>
 </table>
 <p>三者的服务端状态机完全相同，差别只在"状态变化怎么通知客户端"——<strong>先把状态机做对，通知方式可以逐步升级</strong>（项目三轮询起步，README 扩展方向 4 给了 SSE 升级路径）。</p>
-<p><strong>契约表（项目三 Java 端点，与 data/*.json 对拍）</strong>：</p>
+<p>**契约表（项目三 Java 端点，与 data/*.json 对拍）**：</p>
 <table>
 <thead>
 <tr>
@@ -20424,7 +20447,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <h3 id="593">59.3 正式原理与准确术语</h3>
 <ul>
 <li><strong>超时（timeout/deadline）</strong>：等待上限。三个不同的超时要分开配置：连接超时（建立 TCP/TLS）、首字节超时（TTFB，发出请求到第一个 token）、整体超时（完整响应）。流式场景整体超时常被"空闲超时"（token 间隔）替代。</li>
-<li><strong>重试（retry）</strong>：失败后再试。三要素：<strong>重试哪些错误</strong>（429/5xx/连接错误可试；401/403/400 不可试）、<strong>退避（backoff）</strong>（指数退避 base×2ⁿ + 全抖动 jitter，防止同时重试）、<strong>重试预算（retry budget）</strong>（重试流量占比上限，如 10%——预算耗尽后本周期不再重试，这是对"重试风暴"的机制级封顶）。</li>
+<li><strong>重试（retry）</strong>：失败后再试。三要素：<strong>重试哪些错误</strong>（429/5xx/连接错误可试；401/403/400 不可试）、<strong>退避（backoff）</strong>（指数退避 base×2ⁿ 配抖动 jitter，防止同时重试——术语要分清：full jitter（全抖动）是在 [0, 上限] 内均匀随机取等待（ch15.5.1 的实现）；在指数值上叠加小幅随机（如 base×2ⁿ + uniform(0, 0.05)，ch24/ch56 的实现）是 equal jitter（等抖动）。两种都有效，但别混称）、<strong>重试预算（retry budget）</strong>（重试流量占比上限，如 10%——预算耗尽后本周期不再重试，这是对"重试风暴"的机制级封顶）。</li>
 <li><strong>限流（rate limit）</strong>：控制请求<strong>速率</strong>（每分钟几个），ch19 的固定窗口/滑动窗口/令牌桶，按"租户×端点"两个维度配。</li>
 <li><strong>背压（backpressure）</strong>：控制<strong>在途量</strong>（同时压在系统里几个），Semaphore+队列深度（59.5.2），uvicorn 的 <code>--limit-concurrency</code> 是进程级总闸（ch20）。</li>
 <li><strong>熔断（circuit breaker）</strong>：错误率超阈值后<strong>快速失败</strong>一段时间（OPEN），期间不碰故障下游，冷却后半开探测（EX-59-04）。</li>
@@ -21310,19 +21333,27 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <p><strong>偏好优化</strong>（2 段通俗解释）：①SFT 教"应该怎么答"，偏好优化教"两种回答哪种更好"——用人类/模型的偏好对比数据调整整体倾向，让回答更有用、更安全、语气更对。RLHF（基于人类反馈的强化学习）与 DPO（直接偏好优化）是两条主要实现路线（数学不展开）。②Java 类比：像<strong>建立"优秀 PR"的评审标准</strong>——不是教你怎么写代码（SFT），而是让全团队对"什么是好代码"的判断趋同。类比边界：偏好是<strong>整体倾向</strong>的校准，解决不了"某个具体格式总错"（那是 SFT/样本的事）；且偏好数据的标注一致性本身就是工程难点（标注员之间都会打架）。</p>
 <h3 id="624-rag-vs-prompt-vs-ex-62-01">62.4 最小完整示例：RAG vs Prompt vs 微调选择树（EX-62-01）</h3>
 <p><strong>决策树全图</strong>（文字版，EX-62-01 是它的确定性代码化）：</p>
-<div class="codehilite"><pre><span></span><code>                    ┌─ 知识侧：需要引用/更新频繁/私有且常更新？ ──是──► RAG
-业务诉求 ──┤                  │                                        │
-                    │                  否（知识静态且量小 → 放 Prompt）        │
-                    ▼                                                        ▼
-          ┌─ 风格侧：格式/风格强约束？ ──否──► Prompt 工程            ┌─ 同时格式严格
-          │            │                                              且样本≥1000？
-          │            是                                              │        │
-          ▼            ▼                                              是        否
-   样本 ≥1000？ ──是──► LoRA 候选（先做 Prompt 基线）              混合路线   Prompt+补样本
-          │                                                             (RAG+LoRA)
-          否
-          ▼
-   Prompt+few-shot，补样本到 100+ 再谈
+<div class="codehilite"><pre><span></span><code>业务诉求（六项特征：私有知识 / 更新频率 / 引用 / 格式严格 / 样本量 / 预算）
+   │
+   ▼
+【判定一 · 知识侧】依赖私有知识、需引用溯源、知识更新频繁？
+   │
+   ├─ 是 ────► 知识走 RAG（模型外管理：更新不改模型、可引用、可按权限过滤）
+   │              │
+   ├─ 私有但更新慢 ──► 知识量小先放进 Prompt，chunk 多了再转 RAG
+   │
+   └─ 否 ────► 知识直接进 Prompt
+   │
+   ▼
+【判定二 · 风格侧】格式/风格强约束且 Prompt 已难以满足？
+   │
+   ├─ 否 ────► 不需要微调：Prompt 工程 + 评估集就是全部
+   │
+   └─ 是 ────► 样本 ≥ 1000？
+                 ├─ 是 ──► LoRA 微调候选（先做完 Prompt 基线再动手）
+                 │           └─ 判定一已选 RAG？→ 混合路线（RAG 管知识 + LoRA 管格式）
+                 └─ 否 ──► 先 Prompt+few-shot，补样本到 1000 再谈微调
+                             └─ 已是 RAG？→ 知识归 RAG、风格归 Prompt，别混成一个方案
 </code></pre></div>
 
 <p><strong>EX-62-01 | 示例代码/ch62_finetuning_boundary/ex_62_01_route_selector.py（完整可运行，纯规则确定性）</strong>实现这棵树。真实运行输出（三个真实感案例走树）：</p>
@@ -21909,7 +21940,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <li><strong>[模拟题] <code>time.sleep(5)</code> 写进 async 函数，伤害半径多大？和 Tomcat 里的同类错误比呢？</strong> 评分要点——卡住整个事件循环（不是单个请求）；发现靠压测 P99 尖刺与日志调度延迟；Java 对照：Tomcat 多线程下半径是一个请求、asyncio 单线程下是全部请求。</li>
 <li><strong>[模拟题] 三个场景配对三个原语：要么全成全败 / 部分失败可接受 / 整批总超时。</strong> 评分要点——TaskGroup（取消兄弟+ExceptionGroup）/gather(return_exceptions=True)/wait 的 timeout；说出"取消必须 re-raise，否则被吃掉"加分。</li>
 <li><strong>[模拟题] 调模型 API 的 Semaphore 并发数 N 怎么定？它和 Redis 限流各管哪一层？</strong> 评分要点——N 的推导顺序（下游配额→实例数→重试余量）；三层纵深：进程内出口并发/跨实例配额/下游自带限流（429+Retry-After）；引 EX-13-06 与 EX-19-04 加分。</li>
-<li><strong>[模拟题] 重试的三前提是什么？openai SDK 内建重试与你应用层重试叠加，最多发出几次真实请求？</strong> 评分要点——幂等可重发/下游能承受/调用方等得起；SDK 默认 max_retries=2 × 应用 3 次 = 最多 6 次（叠加会自我放大限流）；策略"只留一层并算清总预算"；幂等键服务端"首执记账、重复回放"。</li>
+<li><strong>[模拟题] 重试的三前提是什么？openai SDK 内建重试与你应用层重试叠加，最多发出几次真实请求？</strong> 评分要点——幂等可重发/下游能承受/调用方等得起；SDK 一层 1+2=3 次尝试，应用层 3 次尝试，两层叠加最坏 3×3=9 次真实请求（叠加会自我放大限流）；策略"只留一层并算清总预算"；幂等键服务端"首执记账、重复回放"。</li>
 </ol>
 <hr />
 <h2 id="123-api">12.3 专题三：模型 API 与结构化输出</h2>
@@ -21979,7 +22010,7 @@ python3<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> 
 <h4 id="3-7-429-sdk">题 3-7 [模拟题] 遇到 429 怎么处理？SDK 的自动重试和你的重试怎么共存？</h4>
 <p><strong>1. 问题与考查点</strong>：考限流信号的语义理解与"重试叠加"这个隐性炸弹——高频且实战性强。</p>
 <p><strong>2. 常见错误回答</strong>："429 就立即重试。"——立即重试正好撞在限流枪口上；正确处理必须尊重 Retry-After 与退避；两层重试叠加的总预算也很少有人算。</p>
-<p><strong>3. 简洁合格回答</strong>：429 是"限流"不是"失败"：① 尊重 <code>Retry-After</code> 头（秒数或 HTTP 日期，格式以厂商文档为准）；② 没有该头就指数退避+抖动；③ openai SDK（3.35.1 实测）默认 <code>max_retries=2</code>，对 429/连接错误/部分 5xx 自动重试——<strong>应用层再加重试就是两层叠加</strong>：2 次 SDK 重试 × 应用 3 次 = 最多 6 次真实请求，会自我放大限流；策略是只留一层（通常关小 SDK 层或去掉应用层）并算清总预算；④ 持续 429 说明并发超配额，回头调 Semaphore/限流（题 2-4），不是无脑重试。</p>
+<p><strong>3. 简洁合格回答</strong>：429 是"限流"不是"失败"：① 尊重 <code>Retry-After</code> 头（秒数或 HTTP 日期，格式以厂商文档为准）；② 没有该头就指数退避+抖动；③ openai SDK（3.35.1 实测）默认 <code>max_retries=2</code>，对 429/连接错误/部分 5xx 自动重试——<strong>应用层再加重试就是两层叠加</strong>：SDK 一层 1+2=3 次尝试 × 应用层 3 次尝试 = 最坏 9 次真实请求，会自我放大限流；策略是只留一层（通常关小 SDK 层或去掉应用层）并算清总预算；④ 持续 429 说明并发超配额，回头调 Semaphore/限流（题 2-4），不是无脑重试。</p>
 <p><strong>4. 深入解释</strong>：429 与 5xx 的处理差异：5xx 是"我坏了"（可重试但看预算），429 是"你太快了"（必须按节奏来）。分租户视角：多租户网关要按租户隔离配额与限流（见 part04 24.11 追问 2 的多租户网关层清单），一个租户打满不该拖死其他租户——Semaphore 与计数都要按租户分桶。监控：429 率、重试后成功率、重试导致的延迟尾部都要有曲线，429 率趋势上升就是容量信号。</p>
 <p><strong>5. 工程案例</strong>：见 part02a ch08.1 的"一次被吞掉的 429"引入案例与 part03 ch15.1 的重试风暴事故（合成案例）；EX-15-02 退避+抖动实现。part04 24.3 实测核实了 SDK 重试默认值与触发条件（连接错误、408、429 与部分 5xx；401/403/400 不重试）——这两个事实来自对 3.35.1 的实际探测，可以放心引用。</p>
 <p><strong>6. 追问与回答边界</strong>：

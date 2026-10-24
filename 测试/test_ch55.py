@@ -1,6 +1,6 @@
 # 测试/test_ch55.py | 第 55 章：MCP（真实 stdio 协议闭环 / 工具错误语义 / LangChain 适配）
-"""覆盖（4 个测试）：initialize 握手与能力协商、构建工具/list 形状（name/description/
-inputSchema）、构建工具/call 正常与业务错误（isError=True 是结果不是协议错误）、
+"""覆盖（4 个测试）：initialize 握手与能力协商、tools/list 形状（name/description/
+inputSchema）、tools/call 正常与业务错误（isError=True 是结果不是协议错误）、
 langchain-mcp-adapters 转换后的 BaseTool 直调。
 
 真实拉起 ex_55_02 的 stdio server 子进程（mcp 1.30.0），全程走 JSON-RPC——

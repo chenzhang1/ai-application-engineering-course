@@ -1,4 +1,4 @@
-# EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py
+# EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py
 """完整可运行（离线）：@tool 把普通函数变成 BaseTool——docstring 变描述、类型注解变
 参数 schema；对照第四部分裸 SDK 里"手写 JSON Schema + 手写执行分发"两份代码。
 """

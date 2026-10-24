@@ -46,7 +46,7 @@ def main() -> None:
     except NotImplementedError as e:
         print(f"    NotImplementedError（异常消息为空——基类只声明契约，不解释）：{e!r}")
 
-    print("\n[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/...")
+    print("\n[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/...")
     print("    response_format/state_schema/checkpointer 等——运行记录见 part07.md）：")
     script = iter([
         AIMessage(content="", tool_calls=[

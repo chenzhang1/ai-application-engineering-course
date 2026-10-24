@@ -425,7 +425,7 @@ EX-13-08 首跑结果异常：并发 20 个 100ms 请求耗时远超理论值，
 
 ## 14.3 正式原理与准确术语
 
-- **GIL（Global Interpreter Lock，全局解释器锁）**：CPython 解释器的互斥锁，保证同一时刻仅一个线程执行 Python 字节码。**版本事实**：CPython 3.12 前的所有正式版本默认带 GIL；3.13 起提供 free-threading（自由线程）**实验性**构建（可用 `python3.13t` 类构建关闭 GIL），截至本书核实的版本仍非默认、生态适配有限——具体状态以官方发布说明为准。
+- **GIL（Global Interpreter Lock，全局解释器锁）**：CPython 解释器的互斥锁，保证同一时刻仅一个线程执行 Python 字节码。**版本事实**：CPython 3.12 前的所有正式版本默认带 GIL；3.13 起提供 free-threading（自由线程）**实验性**构建（可用 `python3.13t` 类构建关闭 GIL）；3.14 起按 PEP 779 转为**官方支持但默认关闭**的构建形态（仍需显式安装/启用 free-threaded 构建，普通构建默认带 GIL），生态适配也在持续推进——具体状态以官方发布说明为准。
 - **IO 密集（IO-bound）**：耗时主要在等待外部系统（网络、磁盘）。特征：CPU 占用低、吞吐瓶颈在等待。
 - **CPU 密集（CPU-bound）**：耗时主要在计算。特征：CPU 占用打满，等待可忽略。
 - **线程池（`ThreadPoolExecutor`）**：`concurrent.futures` 标准库；`submit()` 返回 `Future`（与 Java `ExecutorService.submit` 同名同义），`map()` 与内置 map 同形，`as_completed()` 按完成顺序消费。
@@ -606,7 +606,7 @@ EX-14-02 的线程结果 0.98×是"正确但不加速"的形态——最迷惑�
 
 - **Java 服务里的调用边界**：你的 Spring 服务不需要感知 Python 内部用的是线程还是进程——边界是 HTTP。Python AI 服务内部：IO（调模型/检索）用 asyncio；偶发的重 CPU 步骤（长文本统计、图片缩放）用 `asyncio.to_thread` 或常驻进程池包一层，对请求方仍是异步接口。
 - **uvicorn 多 worker 是"进程池"的服务化形态**：ch20 的 `uvicorn --workers 2` 就是每个 worker 一个进程（各自独立 GIL），并行能力来自进程模型——这也解释了为什么"进程内计数器限流"在多 worker 下必然失灵，必须用 Redis（ch19）。
-- **模型推理不受纯 Python GIL 讨论**:本地跑模型时，真正的计算在 torch/ONNX 的 C/CUDA 层，会释放 GIL；"预处理慢"与"推理慢"要分开测（衔接 ch59 的性能分析思路）。
+- **模型推理不落在"纯 Python 受 GIL 限制"的讨论范围内**：本地跑模型时，真正的计算发生在 torch/ONNX 的 C/CUDA 层（执行时会释放 GIL），所以"推理慢"通常不是 GIL 造成的；倒是喂给模型的前后处理若是纯 Python 代码，仍会被 GIL 卡住——"预处理慢"与"推理慢"要分开测（衔接 ch59 的性能分析思路）。
 
 ## 14.9 练习
 
@@ -1030,9 +1030,12 @@ class Settings(BaseSettings):
     app_env: str = "dev"                      # ORDER_APP_ENV
     openai_api_key: str = ""                  # ORDER_OPENAI_API_KEY——只在环境/.env，绝不硬编码
 
-    # 层级 2：真实环境变量优先级最高（Java 对照：System.getenv / Spring 的 profile 配置覆盖）
-    os.environ["ORDER_APP_ENV"] = "production"
-    s2 = Settings(_env_file=".env")
+# 节选：以下为使用演示（完整版在示例的 main() 里）
+# 层级 2：真实环境变量优先级最高（Java 对照：System.getenv / Spring 的 profile 配置覆盖）
+import os
+os.environ["ORDER_APP_ENV"] = "production"
+os.environ["ORDER_RATE_LIMIT_PER_MINUTE"] = "120"
+s2 = Settings(_env_file=".env")
 ```
 
 真实运行输出（示例目录自带演示 .env，其中密钥是占位符）：
@@ -1129,9 +1132,9 @@ cd /workspace/ai_application_course && python3 -m pytest 测试/test_ch16.py -v
 
 model_validator 抛出的跨字段错误 `loc=()`——没有字段可挂。修复思路：仍返回 422 但错误信息用业务语言（"质量投诉类退款单笔上限 10000"），前端按"表单级错误"展示；不要为了凑 loc 硬塞进某个字段。
 
-**错误三：`tags: list[str] = []` 的共享默认值**
+**错误三：`tags: list[str] = []` 的可变默认值**
 
-直接写 `= []` 时 Pydantic 会拒绝（或复制语义因版本而异，以官方文档为准），正确姿势是 `Field(default_factory=list)`——这与 ch06 的"默认参数陷阱"同根因：默认值在**定义时求值一次**，不是每次调用重建。
+在标准 Python 类里直接写 `= []` 会踩共享默认值陷阱——与 ch06 的"默认参数陷阱"同根因：默认值在**定义时求值一次**，不是每次调用重建。Pydantic v2 对此做了兜底：` = []` 是允许的，且每个实例会拿到深拷贝，不会共享同一个列表，所以这里并不会真出错。本书仍推荐 `Field(default_factory=list)`：一是意图更明确（"每次新建"是显式声明出来的），二是读者不必在"普通类"与"Pydantic 模型"之间切换两套默认值语义。
 
 **错误四：mypy 报错"Str 下不支持比较"之类，代码明明能跑**
 
@@ -1955,6 +1958,7 @@ def build_client() -> Any:
 
 def get_order_cached(client: Any, order_id: str, ttl: int = 2) -> dict[str, Any]:
     """cache-aside 模式：先查缓存 → 未命中回源 → 写回缓存（带 TTL）。"""
+    global _miss, _hit
     key = f"order:{order_id}"
     cached = client.get(key)
     if cached is not None:
@@ -2149,7 +2153,7 @@ Java 世界里部署被 Spring Boot jar + 内嵌 Tomcat + K8s 探针"惯坏"了�
 - **HEALTHCHECK**：容器内健康自检（interval/timeout/retries），失败超过阈值编排器标记 unhealthy。
 - **uvicorn 生产参数**（EX-20-02 用 `--help` 实测存在）：`--workers`（进程数）、`--host 0.0.0.0`（容器内必须，否则端口映射不进来）、`--port`、`--timeout-keep-alive`（小于 LB 空闲超时，避免半开连接堆积）、`--limit-concurrency`（并发上限，保护下游）、`--timeout-graceful-shutdown`（优雅停机宽限期）、`--access-log`（排障期开，稳定后关）。
 - **健康检查端点**：`/healthz` 存活（进程活着即可 200）；"就绪"（依赖可用）与"存活"分离的思想（ch17 的 healthz 返回 backend 信息就是为排查留的钩子）。
-- **requirements 锁定**：`requirements-lock.txt`（pip freeze 产物）固定全量传递依赖版本——构建可复现的最低保障；更严格的 lock 工具链（pip-构建工具/uv 等）本书不展开。
+- **requirements 锁定**：`requirements-lock.txt`（pip freeze 产物）固定全量传递依赖版本——构建可复现的最低保障；更严格的 lock 工具链（pip-tools/uv 等）本书不展开。
 - **.dockerignore**：`.git/`、测试、示例不进镜像（镜像更小、构建上下文更快、少泄密面）。
 
 ## 20.4 最小完整示例：生产 Dockerfile 逐行解读

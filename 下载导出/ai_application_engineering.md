@@ -5632,7 +5632,7 @@ EX-13-08 首跑结果异常：并发 20 个 100ms 请求耗时远超理论值，
 
 ### 14.3 正式原理与准确术语
 
-- **GIL（Global Interpreter Lock，全局解释器锁）**：CPython 解释器的互斥锁，保证同一时刻仅一个线程执行 Python 字节码。**版本事实**：CPython 3.12 前的所有正式版本默认带 GIL；3.13 起提供 free-threading（自由线程）**实验性**构建（可用 `python3.13t` 类构建关闭 GIL），截至本书核实的版本仍非默认、生态适配有限——具体状态以官方发布说明为准。
+- **GIL（Global Interpreter Lock，全局解释器锁）**：CPython 解释器的互斥锁，保证同一时刻仅一个线程执行 Python 字节码。**版本事实**：CPython 3.12 前的所有正式版本默认带 GIL；3.13 起提供 free-threading（自由线程）**实验性**构建（可用 `python3.13t` 类构建关闭 GIL）；3.14 起按 PEP 779 转为**官方支持但默认关闭**的构建形态（仍需显式安装/启用 free-threaded 构建，普通构建默认带 GIL），生态适配也在持续推进——具体状态以官方发布说明为准。
 - **IO 密集（IO-bound）**：耗时主要在等待外部系统（网络、磁盘）。特征：CPU 占用低、吞吐瓶颈在等待。
 - **CPU 密集（CPU-bound）**：耗时主要在计算。特征：CPU 占用打满，等待可忽略。
 - **线程池（`ThreadPoolExecutor`）**：`concurrent.futures` 标准库；`submit()` 返回 `Future`（与 Java `ExecutorService.submit` 同名同义），`map()` 与内置 map 同形，`as_completed()` 按完成顺序消费。
@@ -5813,7 +5813,7 @@ EX-14-02 的线程结果 0.98×是"正确但不加速"的形态——最迷惑�
 
 - **Java 服务里的调用边界**：你的 Spring 服务不需要感知 Python 内部用的是线程还是进程——边界是 HTTP。Python AI 服务内部：IO（调模型/检索）用 asyncio；偶发的重 CPU 步骤（长文本统计、图片缩放）用 `asyncio.to_thread` 或常驻进程池包一层，对请求方仍是异步接口。
 - **uvicorn 多 worker 是"进程池"的服务化形态**：ch20 的 `uvicorn --workers 2` 就是每个 worker 一个进程（各自独立 GIL），并行能力来自进程模型——这也解释了为什么"进程内计数器限流"在多 worker 下必然失灵，必须用 Redis（ch19）。
-- **模型推理不受纯 Python GIL 讨论**:本地跑模型时，真正的计算在 torch/ONNX 的 C/CUDA 层，会释放 GIL；"预处理慢"与"推理慢"要分开测（衔接 ch59 的性能分析思路）。
+- **模型推理不落在"纯 Python 受 GIL 限制"的讨论范围内**：本地跑模型时，真正的计算发生在 torch/ONNX 的 C/CUDA 层（执行时会释放 GIL），所以"推理慢"通常不是 GIL 造成的；倒是喂给模型的前后处理若是纯 Python 代码，仍会被 GIL 卡住——"预处理慢"与"推理慢"要分开测（衔接 ch59 的性能分析思路）。
 
 ### 14.9 练习
 
@@ -6237,9 +6237,12 @@ class Settings(BaseSettings):
     app_env: str = "dev"                      # ORDER_APP_ENV
     openai_api_key: str = ""                  # ORDER_OPENAI_API_KEY——只在环境/.env，绝不硬编码
 
-    # 层级 2：真实环境变量优先级最高（Java 对照：System.getenv / Spring 的 profile 配置覆盖）
-    os.environ["ORDER_APP_ENV"] = "production"
-    s2 = Settings(_env_file=".env")
+### 节选：以下为使用演示（完整版在示例的 main() 里）
+### 层级 2：真实环境变量优先级最高（Java 对照：System.getenv / Spring 的 profile 配置覆盖）
+import os
+os.environ["ORDER_APP_ENV"] = "production"
+os.environ["ORDER_RATE_LIMIT_PER_MINUTE"] = "120"
+s2 = Settings(_env_file=".env")
 ```
 
 真实运行输出（示例目录自带演示 .env，其中密钥是占位符）：
@@ -6336,9 +6339,9 @@ cd /workspace/ai_application_course && python3 -m pytest 测试/test_ch16.py -v
 
 model_validator 抛出的跨字段错误 `loc=()`——没有字段可挂。修复思路：仍返回 422 但错误信息用业务语言（"质量投诉类退款单笔上限 10000"），前端按"表单级错误"展示；不要为了凑 loc 硬塞进某个字段。
 
-**错误三：`tags: list[str] = []` 的共享默认值**
+**错误三：`tags: list[str] = []` 的可变默认值**
 
-直接写 `= []` 时 Pydantic 会拒绝（或复制语义因版本而异，以官方文档为准），正确姿势是 `Field(default_factory=list)`——这与 ch06 的"默认参数陷阱"同根因：默认值在**定义时求值一次**，不是每次调用重建。
+在标准 Python 类里直接写 `= []` 会踩共享默认值陷阱——与 ch06 的"默认参数陷阱"同根因：默认值在**定义时求值一次**，不是每次调用重建。Pydantic v2 对此做了兜底：` = []` 是允许的，且每个实例会拿到深拷贝，不会共享同一个列表，所以这里并不会真出错。本书仍推荐 `Field(default_factory=list)`：一是意图更明确（"每次新建"是显式声明出来的），二是读者不必在"普通类"与"Pydantic 模型"之间切换两套默认值语义。
 
 **错误四：mypy 报错"Str 下不支持比较"之类，代码明明能跑**
 
@@ -7162,6 +7165,7 @@ def build_client() -> Any:
 
 def get_order_cached(client: Any, order_id: str, ttl: int = 2) -> dict[str, Any]:
     """cache-aside 模式：先查缓存 → 未命中回源 → 写回缓存（带 TTL）。"""
+    global _miss, _hit
     key = f"order:{order_id}"
     cached = client.get(key)
     if cached is not None:
@@ -7356,7 +7360,7 @@ Java 世界里部署被 Spring Boot jar + 内嵌 Tomcat + K8s 探针"惯坏"了�
 - **HEALTHCHECK**：容器内健康自检（interval/timeout/retries），失败超过阈值编排器标记 unhealthy。
 - **uvicorn 生产参数**（EX-20-02 用 `--help` 实测存在）：`--workers`（进程数）、`--host 0.0.0.0`（容器内必须，否则端口映射不进来）、`--port`、`--timeout-keep-alive`（小于 LB 空闲超时，避免半开连接堆积）、`--limit-concurrency`（并发上限，保护下游）、`--timeout-graceful-shutdown`（优雅停机宽限期）、`--access-log`（排障期开，稳定后关）。
 - **健康检查端点**：`/healthz` 存活（进程活着即可 200）；"就绪"（依赖可用）与"存活"分离的思想（ch17 的 healthz 返回 backend 信息就是为排查留的钩子）。
-- **requirements 锁定**：`requirements-lock.txt`（pip freeze 产物）固定全量传递依赖版本——构建可复现的最低保障；更严格的 lock 工具链（pip-构建工具/uv 等）本书不展开。
+- **requirements 锁定**：`requirements-lock.txt`（pip freeze 产物）固定全量传递依赖版本——构建可复现的最低保障；更严格的 lock 工具链（pip-tools/uv 等）本书不展开。
 - **.dockerignore**：`.git/`、测试、示例不进镜像（镜像更小、构建上下文更快、少泄密面）。
 
 ### 20.4 最小完整示例：生产 Dockerfile 逐行解读
@@ -7824,7 +7828,7 @@ if __name__ == "__main__":
 
 ### 21.5 逐段解释：为什么"量错了"会连环出错
 
-**（1）count_tokens 的双路径设计（llm_client.py）**。我们的统一客户端提供 `count_tokens(text) -> tuple[int, str]`：优先用 tiktoken 的 `cl100k_base` 词表精确计数，返回值第二项是**计数方式标注**——`"tiktoken:cl100k_base"` 或回退时的 `"approx:chars//4"`。为什么不静默回退？因为两种方式的误差可以达到 4 倍（上表），让调用方"以为自己在精确计数"是埋雷。tiktoken 0.14.0 首次调用 `get_encoding("cl100k_base")` 需要联网下载 BPE 词表（本书沙箱实测约 27 秒），之后缓存到 `TIKTOKEN_CACHE_DIR` 或系统临时目录，离线可用（第二次加载实测 0.14 秒）。
+**（1）count_tokens 的双路径设计（llm_client.py）**。我们的统一客户端提供 `count_tokens(text) -> tuple[int, str]`：优先用 tiktoken 精确计数（本书固定 `cl100k_base` 词表，保证全书 token 数字同一口径、可复算），返回值第二项是**计数方式标注**——`"tiktoken:cl100k_base"` 或回退时的 `"approx:chars//4"`。为什么不静默回退？因为两种方式的误差可以达到 4 倍（上表），让调用方"以为自己在精确计数"是埋雷。**编码要按模型选**：`cl100k_base` 对应 gpt-3.5/gpt-4 世代；gpt-4o 世代起主流是 o200k 系编码，同一文本在不同编码下的 token 数并不相同——接入具体模型时用 `tiktoken.encoding_for_model(...)` 或查官方文档选编码，本书的 token 数字都是"cl100k 口径"的教学数字，不要直接拿去给其他模型对账。tiktoken 0.14.0 首次调用 `get_encoding("cl100k_base")` 需要联网下载 BPE 词表（本书沙箱实测约 27 秒），之后缓存到 `TIKTOKEN_CACHE_DIR` 或系统临时目录，离线可用（第二次加载实测 0.14 秒）。
 
 **（2）为什么模型必须"按 token 思考"**。模型输入输出都是整数序列（token id），嵌入表把每个 id 映射成一个向量（ch22）。所以"模型看到多少字"这个问题本身不成立，成立的是"看到多少 token"。**Java 对照**：就像你不会用"文件多大 MB"来预估"数据库多少行"，文本长度（字符）和模型消耗（token）是两个度量体系，中间隔着 tokenizer 这张表。
 
@@ -9256,7 +9260,7 @@ if __name__ == "__main__":
 | 基础对话 | `/chat/completions` 路径与请求体形状 | EX-24-01 的最小请求 |
 | 流式 | SSE 帧格式、`delta.content` 字段、`[DONE]` 结束标记 | curl -N 观察原始帧 |
 | 结构化输出 | 是否支持 `response_format`（含 json_schema 严格模式还是仅 json_object） | 发 schema 请求，故意造非法输出看是否守约 |
-| 工具调用 | `构建工具/tool_choice` 是否生效、`arguments` 是否合法 JSON、是否支持并行调用 | EX-24-03 的脚本在真服务上重跑 |
+| 工具调用 | `tools/tool_choice` 是否生效、`arguments` 是否合法 JSON、是否支持并行调用 | EX-24-03 的脚本在真服务上重跑 |
 | 多模态 | 图片字段名与大小/格式限制 | 小图 + 大图各一发 |
 | usage | 响应是否回带 token 统计、口径是否含工具消息 | 对比本地 tiktoken 估算 |
 | 错误语义 | 429 是否带 `Retry-After`、错误码是否沿用 OpenAI 体系 | 压测触发限流观察 |
@@ -9355,6 +9359,18 @@ with pytest.raises(Exception):
 
 **[模拟题] 3：`response_format` 的 json_schema 严格模式为什么比"提示词里求它输出 JSON"可靠？**
 考查点：约束机制差异。合格回答：前者在解码阶段约束每一步 token 的选择（语法级保证），后者靠模型"自觉"（概率级倾向）；但严格模式未必被所有兼容服务支持，所以工程上两者都要配 Pydantic 校验与失败重试兜底。
+
+### 24.12 2026 API 形态对照与本书边界
+
+> 本书全部示例以 **Chat Completions** 打底——它是兼容面最广的接口形态（各家兼容服务几乎都以它为公共语言，24.5 的"兼容服务核实清单"正是围绕它设计）。但它不是 OpenAI 平台的全部：生产选型时你还需要知道下面这些关键词。本书对它们**一律只点名、不展开教学**，落到项目前以官方文档为准：
+>
+> - **Responses API**：2025 起官方主推的接口形态，内建工具（联网检索/文件检索等）与服务端状态（历史可由服务端重放）；与 Chat Completions 并存，迁移节奏自行评估；
+> - **流式工具调用**：stream 模式下工具调用参数按 `delta.tool_calls` 分片到达，要按 index 增量聚合后再解析——生产高频痛点，本书 ch23 只演示了文本流的处理；
+> - **Batch API**：离线批处理接口，约半价、非实时返回，适合不在线上等结果的任务；
+> - **reasoning 模型的参数差异**：这类模型的部分采样参数（temperature/top_p 等）不生效或含义不同，以对应模型文档为准；
+> - **prompt caching**：命中缓存的前缀按折扣计价，是"长固定前缀（system/工具声明）"场景的主要成本杠杆。
+>
+> 边界声明：以上是"知道它存在、知道去哪核实"，不是"本书教过你怎么用"——任何一条进入你的项目前，先按 24.5 的核实方法对官方文档实测。
 
 ---
 
@@ -10249,7 +10265,7 @@ if __name__ == "__main__":
 ```
 
 ```text
-### 真实运行输出（Python 3.14.7，tiktoken 精确计数）
+### 真实运行输出（Python 3.14.7，tiktoken:cl100k_base 计数——本书统一口径；编码按目标模型选，见 ch21）
 [原始历史] 10 条消息，共 209 tokens
 
 [截断后]   保留 system + 最近 4 条，共 5 条，115 tokens（省 94）
@@ -11300,14 +11316,17 @@ def dedupe_ai_buggy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 ### ---- 修复版（人类补测试后迭代的结果）---------------------------------------
 def dedupe(items: list[Any]) -> list[Any]:
-    """保持首次出现顺序去重；可哈希元素直接比，dict 按内容签名比。"""
+    """保持首次出现顺序去重；可哈希元素用自身当签名，unhashable 按内容签名比。"""
     seen: list[Any] = []
     out: list[Any] = []
     for x in items:
+        key: Any
         try:
-            key: Any = x  # 可哈希：直接当签名（str/int/tuple…）
-        except TypeError:  # noqa: PERF203 —— unhashable（如 dict）：用内容字符串当签名
-            key = str(sorted(x.items(), key=lambda kv: kv[0]))
+            hash(x)  # 探测可哈希性——赋值本身永远不会抛 TypeError，必须显式探测
+        except TypeError:  # noqa: PERF203 —— unhashable（如 dict）：用内容签名当钥匙
+            key = ("__unhashable__", repr(x))
+        else:
+            key = x  # 可哈希：直接用自身当签名（str/int/tuple…）
         if key not in seen:
             seen.append(key)
             out.append(x)
@@ -14268,9 +14287,11 @@ def build_store() -> list[Chunk]:
     chunks: list[Chunk] = []
     for doc_id, (dept, text) in RAW_DOCS.items():
         for i, piece in enumerate(splitter.split_text(text)):
+            vec = emb.embed_one(piece)                   # 入库前归一化：与 search 的查询侧
+            vec = np.asarray(vec) / np.linalg.norm(vec)  # 对称归一化，点积才是真余弦（ch33 纪律）
             chunks.append(Chunk(chunk_id=f"{doc_id}#{i:03d}", doc_id=doc_id,
                                 department=dept, text=piece,
-                                vector=emb.embed_one(piece)))
+                                vector=vec.tolist()))
     return chunks
 
 
@@ -15461,10 +15482,10 @@ Spring Boot 团队通常在 Python AI 服务里做**三层接线**：模型层�
 
 ### 39.4 最小完整示例：从 @tool 到 Agent 内的错误恢复
 
-**EX-39-01 | 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py（完整可运行）**
+**EX-39-01 | 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py（完整可运行）**
 
 ```python
-### EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py
+### EX-39-01 | @tool 装饰器：函数变工具，schema 自动生成 | 运行: python3 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py
 """完整可运行（离线）：@tool 把普通函数变成 BaseTool——docstring 变描述、类型注解变
 参数 schema；对照第四部分裸 SDK 里"手写 JSON Schema + 手写执行分发"两份代码。
 """
@@ -15534,10 +15555,10 @@ if __name__ == "__main__":
     LangChain 用 @tool 把两份合成一份：schema 自动生成，name 自动路由。
 ```
 
-**EX-39-02 | 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py（完整可运行）**
+**EX-39-02 | 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py（完整可运行）**
 
 ```python
-### EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py
+### EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py
 """完整可运行（离线）：
 [1] args_schema 挂自定义 Pydantic 模型：字段描述进 schema、默认值、枚举约束；
 [2] ToolException：工具"预期内失败"的表达方式，三种 handle_tool_error 策略实测；
@@ -15643,10 +15664,10 @@ if __name__ == "__main__":
     设置 handle_validation_error 后 → '参数不合法：unit 只能是 celsius 或 fahrenheit'
 ```
 
-**EX-39-03 | 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py（完整可运行）**
+**EX-39-03 | 示例代码/ch39_lc_tools/ex_39_03_tool_render.py（完整可运行）**
 
 ```python
-### EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py
+### EX-39-03 | 工具的完整生命周期：schema→渲染→调用→错误→Agent 中的恢复 | 运行: python3 示例代码/ch39_lc_tools/ex_39_03_tool_render.py
 """完整可运行（离线）：
 [1] 多工具 + render_text_description_and_args：模型菜单的真实形态；
 [2] @tool 的 return_direct 选项；
@@ -15766,9 +15787,9 @@ divide(a: 'int', b: 'int') -> 'float' - 两数相除。, args: {'a': {'title': '
 ```bash
 pip install -r requirements.txt   # langchain==1.4.6 / langchain-core==1.6.12
 
-python3 示例代码/ch39_lc_构建工具/ex_39_01_tool_decorator.py
-python3 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py
-python3 示例代码/ch39_lc_构建工具/ex_39_03_tool_render.py
+python3 示例代码/ch39_lc_tools/ex_39_01_tool_decorator.py
+python3 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py
+python3 示例代码/ch39_lc_tools/ex_39_03_tool_render.py
 
 python3 -m pytest 测试/test_ch39.py -q
 ```
@@ -15820,8 +15841,10 @@ def transfer_money(amount: float) -> str:
         raise ToolException("金额超限：单笔上限 10000 元")
     return f"已转账 {amount} 元"
 
-transfer_money.handle_tool_error = "转账失败：{error}。建议：拆分金额或转人工审批。".format
-### 更清晰的可调用写法：
+### 策略一（str）：固定文案——不管异常是什么，返回同一段话
+transfer_money.handle_tool_error = "转账失败。建议：拆分金额或转人工审批。"
+### 策略二（callable）：按异常对象生成文案——收到的就是异常本身，用 f-string 取 e；
+### 注意别写成 "...{error}...".format：format 会把异常当位置参数，具名占位符直接 KeyError（实测）
 transfer_money.handle_tool_error = lambda e: f"转账失败：{e}。建议：拆分金额或转人工审批。"
 ```
 测试：`assert "人工审批" in transfer_money.invoke({"amount": 20000})`。
@@ -16847,7 +16870,7 @@ def main() -> None:
     except NotImplementedError as e:
         print(f"    NotImplementedError（异常消息为空——基类只声明契约，不解释）：{e!r}")
 
-    print("\n[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/...")
+    print("\n[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/...")
     print("    response_format/state_schema/checkpointer 等——运行记录见 part07.md）：")
     script = iter([
         AIMessage(content="", tool_calls=[
@@ -16892,7 +16915,7 @@ if __name__ == "__main__":
 [0] 不实现 bind_tools 会怎样（真实报错，42.3 详述）：
     NotImplementedError（异常消息为空——基类只声明契约，不解释）：NotImplementedError()
 
-[1] create_agent（当前推荐方式，签名含 model/构建工具/system_prompt/middleware/...
+[1] create_agent（当前推荐方式，签名含 model/tools/system_prompt/middleware/...
     response_format/state_schema/checkpointer 等——运行记录见 part07.md）：
     返回类型 = CompiledStateGraph（一个 LangGraph 编译图，第八部分的主角）
     state keys = ['messages']
@@ -18038,7 +18061,7 @@ Spring 集成视角：tools 通常就是**对 Java 服务的只读查询**（HTT
 
 #### 参考答案
 
-基础 1：agent 节点、tools 节点、`agent →(条件)→ 构建工具/END` 条件边、`tools → agent` 回边。基础 2：它由 ToolNode 生成，是"工具执行结果"的载体，与发起调用的 AIMessage 通过 tool_call_id 配对。代码 1：脚本追加 `{"tool_calls": [{"id": "call_003", "name": "query_order_logistics", "arguments": {"order_id": "ORD-1001"}}]}`，最终总结条目前移。代码 2：
+基础 1：agent 节点、tools 节点、`agent →(条件)→ tools/END` 条件边、`tools → agent` 回边。基础 2：它由 ToolNode 生成，是"工具执行结果"的载体，与发起调用的 AIMessage 通过 tool_call_id 配对。代码 1：脚本追加 `{"tool_calls": [{"id": "call_003", "name": "query_order_logistics", "arguments": {"order_id": "ORD-1001"}}]}`，最终总结条目前移。代码 2：
 
 ```python
 class AgentState(MessagesState, total=False):
@@ -18236,7 +18259,7 @@ python3 示例代码/ch47_persistence/ex_47_03_time_travel.py
 
 #### 参考答案
 
-基础 1：流程已结束；流程停在 approval 节点等人工决策。基础 2：每轮 invoke 产生 start 前/support 前/结束共 3 个检查点（EX-47-01 输出的 next 序列可数）。代码 2：取 `next == ('第二步节点',)` 的历史检查点，`invoke({"messages": [HumanMessage("新输入")]}, 旧config)`。调试题：恢复 invoke 的输入应该是**增量**（只放新增消息）——恢复时图会从快照里的旧历史继续，再把输入的"完整历史"追加了一遍，消息翻倍。修法：恢复调用只传新消息，或干脆 `invoke(None, cfg)`（resume 场景）。
+基础 1：流程已结束；流程停在 approval 节点等人工决策。基础 2：每轮 invoke 产生 start 前/support 前/结束共 3 个检查点（EX-47-01 输出的 next 序列可数）。代码 2：取 `next == ('第二步节点',)` 的历史检查点，`invoke({"messages": [HumanMessage("新输入")]}, 旧config)`。调试题：恢复 invoke 的输入应该是**增量**（只放新增消息）——恢复时图会从快照里的旧历史继续，再把输入的"完整历史"追加了一遍，消息翻倍。修法：恢复调用只传新消息。注意 `invoke(None, cfg)` 不是恢复手段——那是 ch47 的时间旅行语义（从历史检查点**原路重放**）；若是 interrupt 后的人工恢复，必须用 `Command(resume=...)`（ch48）。
 
 ### 47.10 自测检查表
 
@@ -19736,7 +19759,7 @@ python3 -m pytest 测试/test_ch54.py -q     # 9 个测试
 
 ## 第 55 章 MCP：把工具暴露给模型的标准化协议
 
-> **本章目标**：讲清 MCP（Model Context Protocol）的定位——**它是协议不是框架**；掌握 host/client/server 角色分工与 构建工具/resources/prompts 三原语；按官方规范（2026-07-28 版）讲传输方式与安全边界；动手跑通"最小 MCP server → 官方 SDK 客户端 → langchain-mcp-adapters → create_agent"的完整闭环。
+> **本章目标**：讲清 MCP（Model Context Protocol）的定位——**它是协议不是框架**；掌握 host/client/server 角色分工与 tools/resources/prompts 三原语；按官方规范（2026-07-28 版）讲传输方式与安全边界；动手跑通"最小 MCP server → 官方 SDK 客户端 → langchain-mcp-adapters → create_agent"的完整闭环。
 > **前置知识**：ch39（工具三件套：name/description/inputSchema）、ch42（create_agent 的工具契约）。
 > **学完你能做什么**：判断团队该不该引入 MCP；自己写一个 stdio MCP server 并接到 LangChain Agent；把"MCP 与 REST API 的关系"讲清楚。
 
@@ -19748,11 +19771,11 @@ MCP 的目标就是消灭这种重复：**工具的实现方（server）只写�
 
 ### 55.2 一句话解释 + 生活类比 + 类比边界
 
-**一句话解释**：MCP 是一个开放协议，用 JSON-RPC 2.0 标准化"AI 应用（host，内嵌 client）"与"工具/数据提供方（server）"之间的消息——发现工具（构建工具/list）、调用工具（构建工具/call）、读资源（resources）、取提示模板（prompts）。
+**一句话解释**：MCP 是一个开放协议，用 JSON-RPC 2.0 标准化"AI 应用（host，内嵌 client）"与"工具/数据提供方（server）"之间的消息——发现工具（tools/list）、调用工具（tools/call）、读资源（resources）、取提示模板（prompts）。
 
 **规范核实声明**：本节以下事实**于 2026-10-19 通过 WebFetch 访问 modelcontextprotocol.io/specification/latest 核实**，当次解析到的版本化页面为 **2026-07-28**（规范正文自述"The specification ... based on the TypeScript schema in schema.ts（2026-07-28）"）。要点：①通信三角色 **Hosts**（发起连接的 LLM 应用）、**Clients**（host 内的连接器）、**Servers**（提供上下文与能力的服务）；②Server 提供三原语 **Resources**（上下文与数据）、**Prompts**（模板化消息）、**Tools**（供模型执行的函数）；③Client 可向 server 提供 **Elicitation**（服务端向用户索要额外信息的能力）；④传输绑定两种：**stdio**（客户端拉起子进程，标准流上传 newline 分隔消息）与 **Streamable HTTP**（每条消息 POST 到单一 MCP 端点，响应为 JSON 或 request-scoped SSE 流）；⑤安全原则：用户同意与控制（调用任何工具前须用户同意）、数据隐私、工具安全（**工具描述等元数据视为不可信内容**，除非来自可信 server）。另一要点与直觉相反：2026-07-28 版规范明确 "**servers do not initiate JSON-RPC requests**"（服务端不发 Request 只回 Response），需要模型/用户输入时通过结果语义表达；早期版本（含 initialize 握手与 server 主动请求）按"向后兼容"章节由实现方协商兼容。**规范演进快，读者落地前请以当日官网为准**——本节给出的版本号与日期即为本书的可追溯锚点。
 
-**生活类比**：MCP ≈ JDBC（统一接口标准），MCP server ≈ 数据库驱动，host ≈ 使用驱动的应用（IDE/DataGrip），构建工具/resources/prompts ≈ 驱动暴露的执行/元数据/预编译语句能力。**类比边界**：①JDBC 只管"连接与执行"，权限模型在数据库侧；MCP 把"用户同意"列为协议级原则——**但同样只是原则**，规范明说"MCP itself cannot enforce these security principles at the protocol level"，强制力仍在实现方（你的 host 代码）；②JDBC 面向 SQL 语义，MCP 面向"模型可用的能力"——inputSchema 是给模型读的，不是给编译器读的。
+**生活类比**：MCP ≈ JDBC（统一接口标准），MCP server ≈ 数据库驱动，host ≈ 使用驱动的应用（IDE/DataGrip），tools/resources/prompts ≈ 驱动暴露的执行/元数据/预编译语句能力。**类比边界**：①JDBC 只管"连接与执行"，权限模型在数据库侧；MCP 把"用户同意"列为协议级原则——**但同样只是原则**，规范明说"MCP itself cannot enforce these security principles at the protocol level"，强制力仍在实现方（你的 host 代码）；②JDBC 面向 SQL 语义，MCP 面向"模型可用的能力"——inputSchema 是给模型读的，不是给编译器读的。
 
 ### 55.3 正式原理与准确术语
 
@@ -19761,7 +19784,7 @@ MCP 的目标就是消灭这种重复：**工具的实现方（server）只写�
 **三种角色**（2026-07-28 规范术语）：Host（LLM 应用本体，如 IDE/聊天客户端/你的 Agent 服务）内嵌一个或多个 Client；每个 Client 与一个 Server 维持一条逻辑连接。**对你（Java 工程师）最实际的认知**：LangChain/你的 Agent 代码扮演 host+client；你写的 MCP server 就是"把工具实现搬出应用"的那一端。
 
 **三原语**：
-- **Tools**（模型控制）：函数能力，`构建工具/list` 返回 name/description/inputSchema 三件套（与 ch39 的 @tool 自动生成物同构——这正是 langchain-mcp-adapters 能无缝翻译的原因），`构建工具/call` 执行。工具内部异常**不产生 JSON-RPC error**，而是返回 `isError: true` 的正常响应（错误即数据，协议层的明确设计）；
+- **Tools**（模型控制）：函数能力，`tools/list` 返回 name/description/inputSchema 三件套（与 ch39 的 @tool 自动生成物同构——这正是 langchain-mcp-adapters 能无缝翻译的原因），`tools/call` 执行。工具内部异常**不产生 JSON-RPC error**，而是返回 `isError: true` 的正常响应（错误即数据，协议层的明确设计）；
 - **Resources**（应用控制）：上下文数据（文件/记录/快照），URI 标识，给"人或应用"消费，可订阅变更；
 - **Prompts**（用户控制）：模板化提问骨架，给人选用。
 
@@ -19799,7 +19822,7 @@ initialize_request = {
                "capabilities": {"roots": {"listChanged": True}, "sampling": {}},
                "clientInfo": {"name": "textbook-client", "version": "1.0.0"}}}
 ### initialize 响应（服务端版本+能力清单）→ notifications/initialized 通知（无 id）
-### → 构建工具/list 响应（name/description/inputSchema）→ 构建工具/call（成功 isError:false / 业务异常 isError:true）
+### → tools/list 响应（name/description/inputSchema）→ tools/call（成功 isError:false / 业务异常 isError:true）
 ```
 
 ```text
@@ -19807,7 +19830,7 @@ initialize_request = {
 ── ① initialize 请求（JSON-RPC Request）──
 {"jsonrpc": "2.0", "id": 1, "method": "initialize",
  "params": {"protocolVersion": "2025-11-25", ...}}
-── ④ 构建工具/list 响应（工具 = name + description + inputSchema）──
+── ④ tools/list 响应（工具 = name + description + inputSchema）──
 {"jsonrpc": "2.0", "id": 2, "result": {"tools": [
     {"name": "get_plan",
      "description": "按计划号查询生产计划详情（产品/数量/状态）。",
@@ -19880,8 +19903,8 @@ async def main() -> None:
     async with stdio_client(params) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             init = await session.initialize()          # 握手：协议版本+能力协商
-            tools = await session.list_tools()          # 构建工具/list
-            ok = await session.call_tool("get_plan", {"plan_id": "P-1002"})   # 构建工具/call
+            tools = await session.list_tools()          # tools/list
+            ok = await session.call_tool("get_plan", {"plan_id": "P-1002"})   # tools/call
             bad = await session.call_tool("get_plan", {"plan_id": "P-9999"})  # 业务错误
             print(f"isError={ok.isError} | {ok.content[0].text}")
             print(f"isError={bad.isError} | {bad.content[0].text[:40]}")
@@ -19896,14 +19919,14 @@ Processing request of type CallToolRequest
 协议版本（SDK 侧协商）: 2025-11-25
 服务端名称           : plan-tools
 服务端能力           : ['experimental', 'prompts', 'resources', 'tools']
-── 构建工具/list 返回 ──
+── tools/list 返回 ──
 - get_plan: 按计划号查询生产计划详情（产品/数量/状态）。
   inputSchema 必填参数: ['plan_id']
 - list_delayed_plans: 列出所有处于延期状态的生产计划。
   inputSchema 必填参数: []
-── 构建工具/call get_plan(P-1002) ──
+── tools/call get_plan(P-1002) ──
 isError=False | content={ "plan_id": "P-1002", ... "status": "延期" }
-── 构建工具/call get_plan(P-9999)（工具内部抛 ValueError）──
+── tools/call get_plan(P-9999)（工具内部抛 ValueError）──
 isError=True | content=Error executing tool get_plan: 计划 P-9999 不存在
 ```
 
@@ -19912,7 +19935,7 @@ isError=True | content=Error executing tool get_plan: 计划 P-9999 不存在
 ```python
 ### EX-55-04 | langchain-mcp-adapters：把 MCP 工具转成 LangChain BaseTool 并接入 create_agent | 运行: python3 示例代码/ch55_mcp/ex_55_04_mcp_langchain_adapter.py
 """实测（langchain-mcp-adapters 0.3.2 + mcp 1.30.0，2026-10-19 真实运行）：
-load_mcp_tools(session) 把 构建工具/list 的结果翻译成 BaseTool——
+load_mcp_tools(session) 把 tools/list 的结果翻译成 BaseTool——
 name/description 原样保留，inputSchema 变成参数 schema；转换后的工具
 本地直调走协议，交给 create_agent 后与 @tool 写的完全同构（源码见示例文件）。"""
 tools: list[BaseTool] = await load_mcp_tools(session)     # MCP → LangChain 的协议翻译层
@@ -19965,7 +19988,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 
 **③ 客户端解析协议失败 / 卡在 initialize**：server 往 stdout 打了日志（print/logging 默认走 stdout）。修复：server 内一切输出走 stderr（logging.basicConfig(stream=sys.stderr)）；检查依赖库是否有"print 调试"残留。**排障技巧：先直接跑 server 脚本，凡 stdout 出现非 JSON 行都是嫌疑人。**
 
-**④ `KeyError: 'plan_id'` / 工具参数缺失**：client 传参与 inputSchema 不符。修复：对照 构建工具/list 返回的 inputSchema（required 字段）；在 host 侧用 Pydantic 再校验一次（ch54 纪律不因 MCP 而豁免）。
+**④ `KeyError: 'plan_id'` / 工具参数缺失**：client 传参与 inputSchema 不符。修复：对照 tools/list 返回的 inputSchema（required 字段）；在 host 侧用 Pydantic 再校验一次（ch54 纪律不因 MCP 而豁免）。
 
 ### 55.8 企业场景中的使用方式（Spring Boot 集成视角）
 
@@ -19984,7 +20007,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 
 #### 参考答案
 
-基础 1：Hosts（LLM 应用）/Clients（host 内连接器）/Servers（能力提供方）；Tools（模型控制）/Resources（应用控制）/Prompts（用户控制）。基础 2：isError=true 是 构建工具/call 的正常响应（工具业务失败，模型可读可改路）；error 帧是协议级事故（未知方法/解析失败等），模型一般不可恢复。代码 1：装饰器照抄 get_plan 形状，schema 校验放函数体内或用 Pydantic；测试用 stdio_client 拉起后 call_tool 断言 isError=True。代码 2：包装函数查 `PERMS[role] & {tool_name}`，未授权直接 raise——测试断言 respx/server 收不到请求。调试题：server 的 stdout 被某依赖打印污染（进度条/横幅），协议帧解析失败——把依赖输出重定向 stderr，或用 `-W` / 环境变量关横幅。
+基础 1：Hosts（LLM 应用）/Clients（host 内连接器）/Servers（能力提供方）；Tools（模型控制）/Resources（应用控制）/Prompts（用户控制）。基础 2：isError=true 是 tools/call 的正常响应（工具业务失败，模型可读可改路）；error 帧是协议级事故（未知方法/解析失败等），模型一般不可恢复。代码 1：装饰器照抄 get_plan 形状，schema 校验放函数体内或用 Pydantic；测试用 stdio_client 拉起后 call_tool 断言 isError=True。代码 2：包装函数查 `PERMS[role] & {tool_name}`，未授权直接 raise——测试断言 respx/server 收不到请求。调试题：server 的 stdout 被某依赖打印污染（进度条/横幅），协议帧解析失败——把依赖输出重定向 stderr，或用 `-W` / 环境变量关横幅。
 
 #### 待核实（本书诚实声明）
 
@@ -19999,7 +20022,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 ### 55.10 自测检查表
 
 - [ ] 我能说清 MCP 是协议不是框架，以及它替换与不替换的东西；
-- [ ] 我能手画 initialize/构建工具/list/构建工具/call 的 JSON-RPC 帧；
+- [ ] 我能手画 initialize/tools/list/tools/call 的 JSON-RPC 帧；
 - [ ] 我能解释 stdio 下 stdout 纪律与 isError 双层错误语义；
 - [ ] 我能在"包 MCP server vs 直接 HTTP 工具"之间给出选择依据；
 - [ ] 我知道 MCP 不豁免任何一条 ch54 治理防线，并知道五条"待核实"边界。
@@ -20046,7 +20069,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 **长任务模式**（EX-56-02）状态机：`pending → running → succeeded | failed | cancelled`。契约：POST → **202** `{task_id, poll}`；GET → 状态+result；DELETE → 202（协作式取消请求）或 409（已终态）。客户端三纪律：提交后只拿 task_id；轮询带间隔与上限；取消是"请求+确认"两步。项目三把同一模式反过来用：Python FastAPI 对外当服务方（POST /analysis），Java 的慢操作依然同步——**角色对调，契约不变**。
 
 **超时与重试语义**（EX-56-03 的四条）：
-- **有限次数**：max_attempts 封顶（本书 3 次）——最坏情况耗时 = Σ(每次超时)+Σ(退避)，可预算可告警。**算例**（项目三默认参数）：read 超时 5s、max_attempts=3、退避 0.05s/0.1s（含抖动 ±0.05s）→ 最坏 ≈ 5+0.05+5+0.1+5 ≈ **15.2s**。把这个数写进任务状态机的超时与前端提示——"分析最多等 15 秒"是可承诺的 SLA，"再等等"不是。若上游 SLA 是 P99=800ms，把 read 收到 2s → 最坏 ≈ 6.2s；
+- **有限次数**：max_attempts 封顶（本书 3 次）——最坏情况耗时 = Σ(每次超时)+Σ(退避)，可预算可告警。**算例**（项目三默认参数）：read 超时 5s、max_attempts=3、退避 0.05s/0.1s（各叠加 uniform(0, 0.05s) 抖动，取上限）→ 最坏 ≈ 5+0.1+5+0.15+5 ≈ **15.25s**。把这个数向上取整写进任务状态机的超时与前端提示（如"分析最多等 16 秒"）——可承诺的 SLA，"再等等"不是。若上游 SLA 是 P99=800ms，把 read 收到 2s → 最坏 ≈ 6.25s；
 - **幂等才自动重试**：GET 天然幂等；POST 必须携带 Idempotency-Key（服务端按 key 去重）——项目三的幂等键由 trace_id+内容哈希确定性生成，同一次分析内重试同 key；
 - **退避+抖动**：base×2^n + 随机抖动，防恢复瞬间的重试风暴；
 - **可重试白名单**：超时/连接错误/5xx 重试；422/404 等业务错误绝不重试（重试一个"参数错了"的请求只会得到同样的错误，纯属烧钱）。
@@ -20905,7 +20928,7 @@ python3 -m pytest 测试/test_ch58.py -v
 ### 59.3 正式原理与准确术语
 
 - **超时（timeout/deadline）**：等待上限。三个不同的超时要分开配置：连接超时（建立 TCP/TLS）、首字节超时（TTFB，发出请求到第一个 token）、整体超时（完整响应）。流式场景整体超时常被"空闲超时"（token 间隔）替代。
-- **重试（retry）**：失败后再试。三要素：**重试哪些错误**（429/5xx/连接错误可试；401/403/400 不可试）、**退避（backoff）**（指数退避 base×2ⁿ + 全抖动 jitter，防止同时重试）、**重试预算（retry budget）**（重试流量占比上限，如 10%——预算耗尽后本周期不再重试，这是对"重试风暴"的机制级封顶）。
+- **重试（retry）**：失败后再试。三要素：**重试哪些错误**（429/5xx/连接错误可试；401/403/400 不可试）、**退避（backoff）**（指数退避 base×2ⁿ 配抖动 jitter，防止同时重试——术语要分清：full jitter（全抖动）是在 [0, 上限] 内均匀随机取等待（ch15.5.1 的实现）；在指数值上叠加小幅随机（如 base×2ⁿ + uniform(0, 0.05)，ch24/ch56 的实现）是 equal jitter（等抖动）。两种都有效，但别混称）、**重试预算（retry budget）**（重试流量占比上限，如 10%——预算耗尽后本周期不再重试，这是对"重试风暴"的机制级封顶）。
 - **限流（rate limit）**：控制请求**速率**（每分钟几个），ch19 的固定窗口/滑动窗口/令牌桶，按"租户×端点"两个维度配。
 - **背压（backpressure）**：控制**在途量**（同时压在系统里几个），Semaphore+队列深度（59.5.2），uvicorn 的 `--limit-concurrency` 是进程级总闸（ch20）。
 - **熔断（circuit breaker）**：错误率超阈值后**快速失败**一段时间（OPEN），期间不碰故障下游，冷却后半开探测（EX-59-04）。
@@ -21676,19 +21699,27 @@ python3 -m pytest 测试/test_ch61.py -v
 **决策树全图**（文字版，EX-62-01 是它的确定性代码化）：
 
 ```text
-                    ┌─ 知识侧：需要引用/更新频繁/私有且常更新？ ──是──► RAG
-业务诉求 ──┤                  │                                        │
-                    │                  否（知识静态且量小 → 放 Prompt）        │
-                    ▼                                                        ▼
-          ┌─ 风格侧：格式/风格强约束？ ──否──► Prompt 工程            ┌─ 同时格式严格
-          │            │                                              且样本≥1000？
-          │            是                                              │        │
-          ▼            ▼                                              是        否
-   样本 ≥1000？ ──是──► LoRA 候选（先做 Prompt 基线）              混合路线   Prompt+补样本
-          │                                                             (RAG+LoRA)
-          否
-          ▼
-   Prompt+few-shot，补样本到 100+ 再谈
+业务诉求（六项特征：私有知识 / 更新频率 / 引用 / 格式严格 / 样本量 / 预算）
+   │
+   ▼
+【判定一 · 知识侧】依赖私有知识、需引用溯源、知识更新频繁？
+   │
+   ├─ 是 ────► 知识走 RAG（模型外管理：更新不改模型、可引用、可按权限过滤）
+   │              │
+   ├─ 私有但更新慢 ──► 知识量小先放进 Prompt，chunk 多了再转 RAG
+   │
+   └─ 否 ────► 知识直接进 Prompt
+   │
+   ▼
+【判定二 · 风格侧】格式/风格强约束且 Prompt 已难以满足？
+   │
+   ├─ 否 ────► 不需要微调：Prompt 工程 + 评估集就是全部
+   │
+   └─ 是 ────► 样本 ≥ 1000？
+                 ├─ 是 ──► LoRA 微调候选（先做完 Prompt 基线再动手）
+                 │           └─ 判定一已选 RAG？→ 混合路线（RAG 管知识 + LoRA 管格式）
+                 └─ 否 ──► 先 Prompt+few-shot，补样本到 1000 再谈微调
+                             └─ 已是 RAG？→ 知识归 RAG、风格归 Prompt，别混成一个方案
 ```
 
 **EX-62-01 | 示例代码/ch62_finetuning_boundary/ex_62_01_route_selector.py（完整可运行，纯规则确定性）**实现这棵树。真实运行输出（三个真实感案例走树）：
@@ -22368,7 +22399,7 @@ python3 -m pytest 测试/test_ch63.py -v
 2. **[模拟题] `time.sleep(5)` 写进 async 函数，伤害半径多大？和 Tomcat 里的同类错误比呢？** 评分要点——卡住整个事件循环（不是单个请求）；发现靠压测 P99 尖刺与日志调度延迟；Java 对照：Tomcat 多线程下半径是一个请求、asyncio 单线程下是全部请求。
 3. **[模拟题] 三个场景配对三个原语：要么全成全败 / 部分失败可接受 / 整批总超时。** 评分要点——TaskGroup（取消兄弟+ExceptionGroup）/gather(return_exceptions=True)/wait 的 timeout；说出"取消必须 re-raise，否则被吃掉"加分。
 4. **[模拟题] 调模型 API 的 Semaphore 并发数 N 怎么定？它和 Redis 限流各管哪一层？** 评分要点——N 的推导顺序（下游配额→实例数→重试余量）；三层纵深：进程内出口并发/跨实例配额/下游自带限流（429+Retry-After）；引 EX-13-06 与 EX-19-04 加分。
-5. **[模拟题] 重试的三前提是什么？openai SDK 内建重试与你应用层重试叠加，最多发出几次真实请求？** 评分要点——幂等可重发/下游能承受/调用方等得起；SDK 默认 max_retries=2 × 应用 3 次 = 最多 6 次（叠加会自我放大限流）；策略"只留一层并算清总预算"；幂等键服务端"首执记账、重复回放"。
+5. **[模拟题] 重试的三前提是什么？openai SDK 内建重试与你应用层重试叠加，最多发出几次真实请求？** 评分要点——幂等可重发/下游能承受/调用方等得起；SDK 一层 1+2=3 次尝试，应用层 3 次尝试，两层叠加最坏 3×3=9 次真实请求（叠加会自我放大限流）；策略"只留一层并算清总预算"；幂等键服务端"首执记账、重复回放"。
 
 ---
 
@@ -22484,7 +22515,7 @@ python3 -m pytest 测试/test_ch63.py -v
 
 **2. 常见错误回答**："429 就立即重试。"——立即重试正好撞在限流枪口上；正确处理必须尊重 Retry-After 与退避；两层重试叠加的总预算也很少有人算。
 
-**3. 简洁合格回答**：429 是"限流"不是"失败"：① 尊重 `Retry-After` 头（秒数或 HTTP 日期，格式以厂商文档为准）；② 没有该头就指数退避+抖动；③ openai SDK（3.35.1 实测）默认 `max_retries=2`，对 429/连接错误/部分 5xx 自动重试——**应用层再加重试就是两层叠加**：2 次 SDK 重试 × 应用 3 次 = 最多 6 次真实请求，会自我放大限流；策略是只留一层（通常关小 SDK 层或去掉应用层）并算清总预算；④ 持续 429 说明并发超配额，回头调 Semaphore/限流（题 2-4），不是无脑重试。
+**3. 简洁合格回答**：429 是"限流"不是"失败"：① 尊重 `Retry-After` 头（秒数或 HTTP 日期，格式以厂商文档为准）；② 没有该头就指数退避+抖动；③ openai SDK（3.35.1 实测）默认 `max_retries=2`，对 429/连接错误/部分 5xx 自动重试——**应用层再加重试就是两层叠加**：SDK 一层 1+2=3 次尝试 × 应用层 3 次尝试 = 最坏 9 次真实请求，会自我放大限流；策略是只留一层（通常关小 SDK 层或去掉应用层）并算清总预算；④ 持续 429 说明并发超配额，回头调 Semaphore/限流（题 2-4），不是无脑重试。
 
 **4. 深入解释**：429 与 5xx 的处理差异：5xx 是"我坏了"（可重试但看预算），429 是"你太快了"（必须按节奏来）。分租户视角：多租户网关要按租户隔离配额与限流（见 part04 24.11 追问 2 的多租户网关层清单），一个租户打满不该拖死其他租户——Semaphore 与计数都要按租户分桶。监控：429 率、重试后成功率、重试导致的延迟尾部都要有曲线，429 率趋势上升就是容量信号。
 

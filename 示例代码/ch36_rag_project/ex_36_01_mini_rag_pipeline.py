@@ -48,9 +48,11 @@ def build_store() -> list[Chunk]:
     chunks: list[Chunk] = []
     for doc_id, (dept, text) in RAW_DOCS.items():
         for i, piece in enumerate(splitter.split_text(text)):
+            vec = emb.embed_one(piece)                   # 入库前归一化：与 search 的查询侧
+            vec = np.asarray(vec) / np.linalg.norm(vec)  # 对称归一化，点积才是真余弦（ch33 纪律）
             chunks.append(Chunk(chunk_id=f"{doc_id}#{i:03d}", doc_id=doc_id,
                                 department=dept, text=piece,
-                                vector=emb.embed_one(piece)))
+                                vector=vec.tolist()))
     return chunks
 
 

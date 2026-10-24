@@ -706,7 +706,7 @@ python3 -m pytest 测试/test_ch54.py -q     # 9 个测试
 
 # 第 55 章 MCP：把工具暴露给模型的标准化协议
 
-> **本章目标**：讲清 MCP（Model Context Protocol）的定位——**它是协议不是框架**；掌握 host/client/server 角色分工与 构建工具/resources/prompts 三原语；按官方规范（2026-07-28 版）讲传输方式与安全边界；动手跑通"最小 MCP server → 官方 SDK 客户端 → langchain-mcp-adapters → create_agent"的完整闭环。
+> **本章目标**：讲清 MCP（Model Context Protocol）的定位——**它是协议不是框架**；掌握 host/client/server 角色分工与 tools/resources/prompts 三原语；按官方规范（2026-07-28 版）讲传输方式与安全边界；动手跑通"最小 MCP server → 官方 SDK 客户端 → langchain-mcp-adapters → create_agent"的完整闭环。
 > **前置知识**：ch39（工具三件套：name/description/inputSchema）、ch42（create_agent 的工具契约）。
 > **学完你能做什么**：判断团队该不该引入 MCP；自己写一个 stdio MCP server 并接到 LangChain Agent；把"MCP 与 REST API 的关系"讲清楚。
 
@@ -718,11 +718,11 @@ MCP 的目标就是消灭这种重复：**工具的实现方（server）只写�
 
 ## 55.2 一句话解释 + 生活类比 + 类比边界
 
-**一句话解释**：MCP 是一个开放协议，用 JSON-RPC 2.0 标准化"AI 应用（host，内嵌 client）"与"工具/数据提供方（server）"之间的消息——发现工具（构建工具/list）、调用工具（构建工具/call）、读资源（resources）、取提示模板（prompts）。
+**一句话解释**：MCP 是一个开放协议，用 JSON-RPC 2.0 标准化"AI 应用（host，内嵌 client）"与"工具/数据提供方（server）"之间的消息——发现工具（tools/list）、调用工具（tools/call）、读资源（resources）、取提示模板（prompts）。
 
 **规范核实声明**：本节以下事实**于 2026-10-19 通过 WebFetch 访问 modelcontextprotocol.io/specification/latest 核实**，当次解析到的版本化页面为 **2026-07-28**（规范正文自述"The specification ... based on the TypeScript schema in schema.ts（2026-07-28）"）。要点：①通信三角色 **Hosts**（发起连接的 LLM 应用）、**Clients**（host 内的连接器）、**Servers**（提供上下文与能力的服务）；②Server 提供三原语 **Resources**（上下文与数据）、**Prompts**（模板化消息）、**Tools**（供模型执行的函数）；③Client 可向 server 提供 **Elicitation**（服务端向用户索要额外信息的能力）；④传输绑定两种：**stdio**（客户端拉起子进程，标准流上传 newline 分隔消息）与 **Streamable HTTP**（每条消息 POST 到单一 MCP 端点，响应为 JSON 或 request-scoped SSE 流）；⑤安全原则：用户同意与控制（调用任何工具前须用户同意）、数据隐私、工具安全（**工具描述等元数据视为不可信内容**，除非来自可信 server）。另一要点与直觉相反：2026-07-28 版规范明确 "**servers do not initiate JSON-RPC requests**"（服务端不发 Request 只回 Response），需要模型/用户输入时通过结果语义表达；早期版本（含 initialize 握手与 server 主动请求）按"向后兼容"章节由实现方协商兼容。**规范演进快，读者落地前请以当日官网为准**——本节给出的版本号与日期即为本书的可追溯锚点。
 
-**生活类比**：MCP ≈ JDBC（统一接口标准），MCP server ≈ 数据库驱动，host ≈ 使用驱动的应用（IDE/DataGrip），构建工具/resources/prompts ≈ 驱动暴露的执行/元数据/预编译语句能力。**类比边界**：①JDBC 只管"连接与执行"，权限模型在数据库侧；MCP 把"用户同意"列为协议级原则——**但同样只是原则**，规范明说"MCP itself cannot enforce these security principles at the protocol level"，强制力仍在实现方（你的 host 代码）；②JDBC 面向 SQL 语义，MCP 面向"模型可用的能力"——inputSchema 是给模型读的，不是给编译器读的。
+**生活类比**：MCP ≈ JDBC（统一接口标准），MCP server ≈ 数据库驱动，host ≈ 使用驱动的应用（IDE/DataGrip），tools/resources/prompts ≈ 驱动暴露的执行/元数据/预编译语句能力。**类比边界**：①JDBC 只管"连接与执行"，权限模型在数据库侧；MCP 把"用户同意"列为协议级原则——**但同样只是原则**，规范明说"MCP itself cannot enforce these security principles at the protocol level"，强制力仍在实现方（你的 host 代码）；②JDBC 面向 SQL 语义，MCP 面向"模型可用的能力"——inputSchema 是给模型读的，不是给编译器读的。
 
 ## 55.3 正式原理与准确术语
 
@@ -731,7 +731,7 @@ MCP 的目标就是消灭这种重复：**工具的实现方（server）只写�
 **三种角色**（2026-07-28 规范术语）：Host（LLM 应用本体，如 IDE/聊天客户端/你的 Agent 服务）内嵌一个或多个 Client；每个 Client 与一个 Server 维持一条逻辑连接。**对你（Java 工程师）最实际的认知**：LangChain/你的 Agent 代码扮演 host+client；你写的 MCP server 就是"把工具实现搬出应用"的那一端。
 
 **三原语**：
-- **Tools**（模型控制）：函数能力，`构建工具/list` 返回 name/description/inputSchema 三件套（与 ch39 的 @tool 自动生成物同构——这正是 langchain-mcp-adapters 能无缝翻译的原因），`构建工具/call` 执行。工具内部异常**不产生 JSON-RPC error**，而是返回 `isError: true` 的正常响应（错误即数据，协议层的明确设计）；
+- **Tools**（模型控制）：函数能力，`tools/list` 返回 name/description/inputSchema 三件套（与 ch39 的 @tool 自动生成物同构——这正是 langchain-mcp-adapters 能无缝翻译的原因），`tools/call` 执行。工具内部异常**不产生 JSON-RPC error**，而是返回 `isError: true` 的正常响应（错误即数据，协议层的明确设计）；
 - **Resources**（应用控制）：上下文数据（文件/记录/快照），URI 标识，给"人或应用"消费，可订阅变更；
 - **Prompts**（用户控制）：模板化提问骨架，给人选用。
 
@@ -769,7 +769,7 @@ initialize_request = {
                "capabilities": {"roots": {"listChanged": True}, "sampling": {}},
                "clientInfo": {"name": "textbook-client", "version": "1.0.0"}}}
 # initialize 响应（服务端版本+能力清单）→ notifications/initialized 通知（无 id）
-# → 构建工具/list 响应（name/description/inputSchema）→ 构建工具/call（成功 isError:false / 业务异常 isError:true）
+# → tools/list 响应（name/description/inputSchema）→ tools/call（成功 isError:false / 业务异常 isError:true）
 ```
 
 ```text
@@ -777,7 +777,7 @@ initialize_request = {
 ── ① initialize 请求（JSON-RPC Request）──
 {"jsonrpc": "2.0", "id": 1, "method": "initialize",
  "params": {"protocolVersion": "2025-11-25", ...}}
-── ④ 构建工具/list 响应（工具 = name + description + inputSchema）──
+── ④ tools/list 响应（工具 = name + description + inputSchema）──
 {"jsonrpc": "2.0", "id": 2, "result": {"tools": [
     {"name": "get_plan",
      "description": "按计划号查询生产计划详情（产品/数量/状态）。",
@@ -850,8 +850,8 @@ async def main() -> None:
     async with stdio_client(params) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             init = await session.initialize()          # 握手：协议版本+能力协商
-            tools = await session.list_tools()          # 构建工具/list
-            ok = await session.call_tool("get_plan", {"plan_id": "P-1002"})   # 构建工具/call
+            tools = await session.list_tools()          # tools/list
+            ok = await session.call_tool("get_plan", {"plan_id": "P-1002"})   # tools/call
             bad = await session.call_tool("get_plan", {"plan_id": "P-9999"})  # 业务错误
             print(f"isError={ok.isError} | {ok.content[0].text}")
             print(f"isError={bad.isError} | {bad.content[0].text[:40]}")
@@ -866,14 +866,14 @@ Processing request of type CallToolRequest
 协议版本（SDK 侧协商）: 2025-11-25
 服务端名称           : plan-tools
 服务端能力           : ['experimental', 'prompts', 'resources', 'tools']
-── 构建工具/list 返回 ──
+── tools/list 返回 ──
 - get_plan: 按计划号查询生产计划详情（产品/数量/状态）。
   inputSchema 必填参数: ['plan_id']
 - list_delayed_plans: 列出所有处于延期状态的生产计划。
   inputSchema 必填参数: []
-── 构建工具/call get_plan(P-1002) ──
+── tools/call get_plan(P-1002) ──
 isError=False | content={ "plan_id": "P-1002", ... "status": "延期" }
-── 构建工具/call get_plan(P-9999)（工具内部抛 ValueError）──
+── tools/call get_plan(P-9999)（工具内部抛 ValueError）──
 isError=True | content=Error executing tool get_plan: 计划 P-9999 不存在
 ```
 
@@ -882,7 +882,7 @@ isError=True | content=Error executing tool get_plan: 计划 P-9999 不存在
 ```python
 # EX-55-04 | langchain-mcp-adapters：把 MCP 工具转成 LangChain BaseTool 并接入 create_agent | 运行: python3 示例代码/ch55_mcp/ex_55_04_mcp_langchain_adapter.py
 """实测（langchain-mcp-adapters 0.3.2 + mcp 1.30.0，2026-10-19 真实运行）：
-load_mcp_tools(session) 把 构建工具/list 的结果翻译成 BaseTool——
+load_mcp_tools(session) 把 tools/list 的结果翻译成 BaseTool——
 name/description 原样保留，inputSchema 变成参数 schema；转换后的工具
 本地直调走协议，交给 create_agent 后与 @tool 写的完全同构（源码见示例文件）。"""
 tools: list[BaseTool] = await load_mcp_tools(session)     # MCP → LangChain 的协议翻译层
@@ -935,7 +935,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 
 **③ 客户端解析协议失败 / 卡在 initialize**：server 往 stdout 打了日志（print/logging 默认走 stdout）。修复：server 内一切输出走 stderr（logging.basicConfig(stream=sys.stderr)）；检查依赖库是否有"print 调试"残留。**排障技巧：先直接跑 server 脚本，凡 stdout 出现非 JSON 行都是嫌疑人。**
 
-**④ `KeyError: 'plan_id'` / 工具参数缺失**：client 传参与 inputSchema 不符。修复：对照 构建工具/list 返回的 inputSchema（required 字段）；在 host 侧用 Pydantic 再校验一次（ch54 纪律不因 MCP 而豁免）。
+**④ `KeyError: 'plan_id'` / 工具参数缺失**：client 传参与 inputSchema 不符。修复：对照 tools/list 返回的 inputSchema（required 字段）；在 host 侧用 Pydantic 再校验一次（ch54 纪律不因 MCP 而豁免）。
 
 ## 55.8 企业场景中的使用方式（Spring Boot 集成视角）
 
@@ -954,7 +954,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 
 ### 参考答案
 
-基础 1：Hosts（LLM 应用）/Clients（host 内连接器）/Servers（能力提供方）；Tools（模型控制）/Resources（应用控制）/Prompts（用户控制）。基础 2：isError=true 是 构建工具/call 的正常响应（工具业务失败，模型可读可改路）；error 帧是协议级事故（未知方法/解析失败等），模型一般不可恢复。代码 1：装饰器照抄 get_plan 形状，schema 校验放函数体内或用 Pydantic；测试用 stdio_client 拉起后 call_tool 断言 isError=True。代码 2：包装函数查 `PERMS[role] & {tool_name}`，未授权直接 raise——测试断言 respx/server 收不到请求。调试题：server 的 stdout 被某依赖打印污染（进度条/横幅），协议帧解析失败——把依赖输出重定向 stderr，或用 `-W` / 环境变量关横幅。
+基础 1：Hosts（LLM 应用）/Clients（host 内连接器）/Servers（能力提供方）；Tools（模型控制）/Resources（应用控制）/Prompts（用户控制）。基础 2：isError=true 是 tools/call 的正常响应（工具业务失败，模型可读可改路）；error 帧是协议级事故（未知方法/解析失败等），模型一般不可恢复。代码 1：装饰器照抄 get_plan 形状，schema 校验放函数体内或用 Pydantic；测试用 stdio_client 拉起后 call_tool 断言 isError=True。代码 2：包装函数查 `PERMS[role] & {tool_name}`，未授权直接 raise——测试断言 respx/server 收不到请求。调试题：server 的 stdout 被某依赖打印污染（进度条/横幅），协议帧解析失败——把依赖输出重定向 stderr，或用 `-W` / 环境变量关横幅。
 
 ### 待核实（本书诚实声明）
 
@@ -969,7 +969,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 ## 55.10 自测检查表
 
 - [ ] 我能说清 MCP 是协议不是框架，以及它替换与不替换的东西；
-- [ ] 我能手画 initialize/构建工具/list/构建工具/call 的 JSON-RPC 帧；
+- [ ] 我能手画 initialize/tools/list/tools/call 的 JSON-RPC 帧；
 - [ ] 我能解释 stdio 下 stdout 纪律与 isError 双层错误语义；
 - [ ] 我能在"包 MCP server vs 直接 HTTP 工具"之间给出选择依据；
 - [ ] 我知道 MCP 不豁免任何一条 ch54 治理防线，并知道五条"待核实"边界。
@@ -1016,7 +1016,7 @@ python3 -m pytest 测试/test_ch55.py -q                     # 4 个测试（真
 **长任务模式**（EX-56-02）状态机：`pending → running → succeeded | failed | cancelled`。契约：POST → **202** `{task_id, poll}`；GET → 状态+result；DELETE → 202（协作式取消请求）或 409（已终态）。客户端三纪律：提交后只拿 task_id；轮询带间隔与上限；取消是"请求+确认"两步。项目三把同一模式反过来用：Python FastAPI 对外当服务方（POST /analysis），Java 的慢操作依然同步——**角色对调，契约不变**。
 
 **超时与重试语义**（EX-56-03 的四条）：
-- **有限次数**：max_attempts 封顶（本书 3 次）——最坏情况耗时 = Σ(每次超时)+Σ(退避)，可预算可告警。**算例**（项目三默认参数）：read 超时 5s、max_attempts=3、退避 0.05s/0.1s（含抖动 ±0.05s）→ 最坏 ≈ 5+0.05+5+0.1+5 ≈ **15.2s**。把这个数写进任务状态机的超时与前端提示——"分析最多等 15 秒"是可承诺的 SLA，"再等等"不是。若上游 SLA 是 P99=800ms，把 read 收到 2s → 最坏 ≈ 6.2s；
+- **有限次数**：max_attempts 封顶（本书 3 次）——最坏情况耗时 = Σ(每次超时)+Σ(退避)，可预算可告警。**算例**（项目三默认参数）：read 超时 5s、max_attempts=3、退避 0.05s/0.1s（各叠加 uniform(0, 0.05s) 抖动，取上限）→ 最坏 ≈ 5+0.1+5+0.15+5 ≈ **15.25s**。把这个数向上取整写进任务状态机的超时与前端提示（如"分析最多等 16 秒"）——可承诺的 SLA，"再等等"不是。若上游 SLA 是 P99=800ms，把 read 收到 2s → 最坏 ≈ 6.25s；
 - **幂等才自动重试**：GET 天然幂等；POST 必须携带 Idempotency-Key（服务端按 key 去重）——项目三的幂等键由 trace_id+内容哈希确定性生成，同一次分析内重试同 key；
 - **退避+抖动**：base×2^n + 随机抖动，防恢复瞬间的重试风暴；
 - **可重试白名单**：超时/连接错误/5xx 重试；422/404 等业务错误绝不重试（重试一个"参数错了"的请求只会得到同样的错误，纯属烧钱）。

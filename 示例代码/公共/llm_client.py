@@ -401,7 +401,7 @@ class RealLLM:
 
     def chat(self, messages: list[dict[str, Any]], *, tools: list[dict[str, Any]] | None = None,
              **kwargs: Any) -> ChatResult:
-        """非流式对话。构建工具/max_tokens/temperature 等参数直接透传 SDK（签名已核实存在）。"""
+        """非流式对话。tools/max_tokens/temperature 等参数直接透传 SDK（签名已核实存在）。"""
         payload: dict[str, Any] = {"model": self.model, "messages": messages, **kwargs}
         if tools:
             payload["tools"] = tools

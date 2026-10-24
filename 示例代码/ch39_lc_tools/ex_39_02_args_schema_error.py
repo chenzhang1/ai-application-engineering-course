@@ -1,4 +1,4 @@
-# EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_构建工具/ex_39_02_args_schema_error.py
+# EX-39-02 | args_schema 自定义 Pydantic 与 ToolException 三种错误策略 | 运行: python3 示例代码/ch39_lc_tools/ex_39_02_args_schema_error.py
 """完整可运行（离线）：
 [1] args_schema 挂自定义 Pydantic 模型：字段描述进 schema、默认值、枚举约束；
 [2] ToolException：工具"预期内失败"的表达方式，三种 handle_tool_error 策略实测；
